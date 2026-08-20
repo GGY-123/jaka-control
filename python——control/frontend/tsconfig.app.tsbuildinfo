@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/api.ts","./src/main.tsx","./src/types.ts","./src/ui.ts","./src/components/floweditor.tsx","./src/components/gripperpanel.tsx","./src/components/joystick.tsx","./src/components/manualcontrol.tsx","./src/components/statuspanel.tsx","./src/components/waypointmanager.tsx"],"version":"5.9.3"}
