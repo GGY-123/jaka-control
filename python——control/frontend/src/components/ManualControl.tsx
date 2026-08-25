@@ -1,10 +1,11 @@
 import { useState, useRef } from 'react'
-import { Octagon, Move3d, AlertTriangle, Info, Cog } from 'lucide-react'
+import { Octagon, Move3d, AlertTriangle, Info, Cog, Send, Crosshair } from 'lucide-react'
 import Joystick from './Joystick'
 import GripperPanel from './GripperPanel'
+import PipettePanel from './PipettePanel'
 import { api } from '../api'
 import type { RobotStatus } from '../types'
-import { btnAxis, btnDanger, card, labelCls, inputCls } from '../ui'
+import { btnAxis, btnDanger, btnGhost, btnPrimary, card, labelCls, inputCls } from '../ui'
 
 const COORDS = [
   { k: 0, label: '基坐标' },
@@ -71,6 +72,11 @@ export default function ManualControl({ connected, status }: { connected: boolea
   const [transVel, setTransVel] = useState(20)
   const [rotVel, setRotVel] = useState(0.5)
   const [jointVel, setJointVel] = useState(0.5)
+  const [target, setTarget] = useState<number[]>([0, 0, 0, 0, 0, 0])
+  const [targetSpeed, setTargetSpeed] = useState(30)
+  const [targetAcc, setTargetAcc] = useState(100)
+  const [targetBusy, setTargetBusy] = useState(false)
+  const [targetMessage, setTargetMessage] = useState('')
   const jogKey = useRef<string | null>(null)
   const tcp = status.tcp ?? [0, 0, 0, 0, 0, 0]
   const joints = status.joints ?? [0, 0, 0, 0, 0, 0]
@@ -110,6 +116,28 @@ export default function ManualControl({ connected, status }: { connected: boolea
   const onJoyEnd = () => { if (jogKey.current !== null) stopJog() }
 
   const velOf = (v: 'trans' | 'rot') => (v === 'trans' ? transVel : rotVel)
+  const useCurrentTcp = () => setTarget(tcp.map((value) => Number(value.toFixed(6))))
+  const updateTarget = (index: number, value: number) =>
+    setTarget((current) => current.map((item, i) => i === index ? value : item))
+  const moveToTarget = async () => {
+    if (!connected || targetBusy) return
+    if (!target.every(Number.isFinite)) {
+      setTargetMessage('请输入有效的 TCP 数值')
+      return
+    }
+    const formatted = target.map((value) => value.toFixed(3)).join(', ')
+    if (!window.confirm(`将以直线运动到 TCP 位姿：\n[${formatted}]\n\n确认路径无碰撞后继续。`)) return
+    setTargetBusy(true)
+    setTargetMessage('')
+    try {
+      await api.move({ move_type: 'linear', target, speed: targetSpeed, acc: targetAcc, tol: 0.1, is_block: true })
+      setTargetMessage('已到达目标位姿')
+    } catch (error) {
+      setTargetMessage(`运动失败: ${(error as Error).message}`)
+    } finally {
+      setTargetBusy(false)
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -178,6 +206,48 @@ export default function ManualControl({ connected, status }: { connected: boolea
         </div>
       </div>
 
+      <div className={`${card} p-4`}>
+        <div className="flex items-start justify-between gap-3 flex-wrap mb-3">
+          <div>
+            <h3 className="font-semibold text-slate-700 flex items-center gap-2">
+              <Crosshair size={18} className="text-brand-600" /> 移动到指定 TCP 位姿
+            </h3>
+            <p className="text-xs text-slate-500 mt-1">基坐标系，X/Y/Z 为 mm，RX/RY/RZ 为 rad。执行为阻塞直线运动。</p>
+          </div>
+          <button className={btnGhost} onClick={useCurrentTcp} disabled={!connected || targetBusy}>
+            <Crosshair size={15} /> 使用当前位姿
+          </button>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+          {['X (mm)', 'Y (mm)', 'Z (mm)', 'RX (rad)', 'RY (rad)', 'RZ (rad)'].map((label, index) => (
+            <label key={label} className="min-w-0">
+              <span className={`${labelCls} block mb-1`}>{label}</span>
+              <input type="number" step="0.001" value={target[index]}
+                onChange={(event) => updateTarget(index, Number(event.target.value))}
+                className={`${inputCls} w-full min-w-0`} disabled={!connected || targetBusy} />
+            </label>
+          ))}
+        </div>
+        <div className="flex flex-wrap items-end gap-3 mt-3">
+          <label>
+            <span className={`${labelCls} block mb-1`}>速度 (mm/s)</span>
+            <input type="number" min={1} max={200} value={targetSpeed}
+              onChange={(event) => setTargetSpeed(Math.min(200, Math.max(1, Number(event.target.value) || 1)))}
+              className={`${inputCls} w-28`} disabled={!connected || targetBusy} />
+          </label>
+          <label>
+            <span className={`${labelCls} block mb-1`}>加速度 (mm/s²)</span>
+            <input type="number" min={1} max={5000} value={targetAcc}
+              onChange={(event) => setTargetAcc(Math.min(5000, Math.max(1, Number(event.target.value) || 1)))}
+              className={`${inputCls} w-32`} disabled={!connected || targetBusy} />
+          </label>
+          <button className={btnPrimary} onClick={moveToTarget} disabled={!connected || targetBusy}>
+            <Send size={16} /> {targetBusy ? '运动执行中' : '直线移动到此点'}
+          </button>
+          {targetMessage && <span className={`text-sm ${targetMessage.startsWith('运动失败') ? 'text-red-600' : 'text-emerald-600'}`}>{targetMessage}</span>}
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className={`${card} p-4 flex flex-col items-center`}>
           <h3 className="font-semibold text-slate-700 mb-3 self-start flex items-center gap-2">
@@ -241,6 +311,7 @@ export default function ManualControl({ connected, status }: { connected: boolea
       </div>
 
       <GripperPanel />
+      <PipettePanel />
     </div>
   )
 }

@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import {
   Activity, Gamepad2, MapPin, ListChecks, Bot, Plug, PlugZap, AlertCircle,
-  Zap, ZapOff, Power, PowerOff,
+  Zap, ZapOff, Power, PowerOff, RotateCw,
 } from 'lucide-react'
 import { api } from './api'
 import type { RobotStatus } from './types'
@@ -10,13 +10,15 @@ import StatusPanel from './components/StatusPanel'
 import ManualControl from './components/ManualControl'
 import WaypointManager from './components/WaypointManager'
 import FlowEditor from './components/FlowEditor'
+import ZergPanel from './components/ZergPanel'
 
-type Tab = 'status' | 'manual' | 'points' | 'flow'
+type Tab = 'status' | 'manual' | 'points' | 'flow' | 'zerg'
 const TABS: { key: Tab; label: string; icon: typeof Activity }[] = [
   { key: 'status', label: '状态监控', icon: Activity },
   { key: 'manual', label: '手动控制', icon: Gamepad2 },
   { key: 'points', label: '点位管理', icon: MapPin },
   { key: 'flow', label: '流程编辑', icon: ListChecks },
+  { key: 'zerg', label: '旋转夹爪', icon: RotateCw },
 ]
 
 export default function App() {
@@ -206,6 +208,7 @@ export default function App() {
             {tab === 'manual' && <ManualControl connected={connected} status={status} />}
             {tab === 'points' && <WaypointManager connected={connected} status={status} />}
             {tab === 'flow' && <FlowEditor connected={connected} />}
+            {tab === 'zerg' && <ZergPanel />}
           </div>
         </div>
       </main>

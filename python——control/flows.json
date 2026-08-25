@@ -4,6 +4,21 @@
     "name": "拔盖流程第一段，最后放在旋转夹爪上等待旋转夹爪夹住试管",
     "segments": [
       {
+        "point_id": "p_0d029508",
+        "move_type": "joint",
+        "speed": 0.5,
+        "acc": 1.0,
+        "tol": 0.1,
+        "wait_after_arrival": 0.0,
+        "gripper": {
+          "type": "none",
+          "position": null,
+          "force": null,
+          "speed": null,
+          "delay": 0.0
+        }
+      },
+      {
         "point_id": "p_d7b19939",
         "move_type": "linear",
         "speed": 50.0,
@@ -204,16 +219,16 @@
     "created_at": "2026-08-20 17:27:35"
   },
   {
-    "id": "f_497adddf",
-    "name": "放回紫色试管到原位置第二段",
+    "id": "f_e0a0a06c",
+    "name": "JAKA Mini 试管点位流程",
     "segments": [
       {
-        "point_id": "p_6d9b3168",
-        "move_type": "linear",
-        "speed": 50.0,
+        "point_id": "jaka_home",
+        "move_type": "joint",
+        "speed": 0.17453292519943295,
         "acc": 100.0,
         "tol": 0.1,
-        "wait_after_arrival": 0.0,
+        "wait_after_arrival": 1.0,
         "gripper": {
           "type": "none",
           "position": null,
@@ -223,12 +238,12 @@
         }
       },
       {
-        "point_id": "p_0d029508",
-        "move_type": "linear",
-        "speed": 50.0,
+        "point_id": "jaka_tube_above",
+        "move_type": "joint",
+        "speed": 0.17453292519943295,
         "acc": 100.0,
         "tol": 0.1,
-        "wait_after_arrival": 0.0,
+        "wait_after_arrival": 1.0,
         "gripper": {
           "type": "none",
           "position": null,
@@ -238,14 +253,89 @@
         }
       },
       {
-        "point_id": "p_d7b19939",
-        "move_type": "linear",
-        "speed": 50.0,
+        "point_id": "jaka_tube_lower",
+        "move_type": "linear_z",
+        "speed": 30.0,
         "acc": 100.0,
         "tol": 0.1,
-        "wait_after_arrival": 0.0,
+        "wait_after_arrival": 1.0,
         "gripper": {
-          "type": "open",
+          "type": "none",
+          "position": null,
+          "force": null,
+          "speed": null,
+          "delay": 0.0
+        }
+      },
+      {
+        "point_id": "jaka_tube_above",
+        "move_type": "linear_z",
+        "speed": 30.0,
+        "acc": 100.0,
+        "tol": 0.1,
+        "wait_after_arrival": 1.0,
+        "gripper": {
+          "type": "none",
+          "position": null,
+          "force": null,
+          "speed": null,
+          "delay": 0.0
+        }
+      },
+      {
+        "point_id": "jaka_point_4",
+        "move_type": "joint",
+        "speed": 0.17453292519943295,
+        "acc": 100.0,
+        "tol": 0.1,
+        "wait_after_arrival": 1.0,
+        "gripper": {
+          "type": "none",
+          "position": null,
+          "force": null,
+          "speed": null,
+          "delay": 0.0
+        }
+      },
+      {
+        "point_id": "jaka_point_5",
+        "move_type": "joint",
+        "speed": 0.17453292519943295,
+        "acc": 100.0,
+        "tol": 0.1,
+        "wait_after_arrival": 1.0,
+        "gripper": {
+          "type": "none",
+          "position": null,
+          "force": null,
+          "speed": null,
+          "delay": 0.0
+        }
+      },
+      {
+        "point_id": "jaka_point_6",
+        "move_type": "joint",
+        "speed": 0.17453292519943295,
+        "acc": 100.0,
+        "tol": 0.1,
+        "wait_after_arrival": 1.0,
+        "gripper": {
+          "type": "none",
+          "position": null,
+          "force": null,
+          "speed": null,
+          "delay": 0.0
+        }
+      },
+      {
+        "point_id": "jaka_home",
+        "move_type": "joint",
+        "speed": 0.17453292519943295,
+        "acc": 100.0,
+        "tol": 0.1,
+        "wait_after_arrival": 1.0,
+        "gripper": {
+          "type": "none",
           "position": null,
           "force": null,
           "speed": null,
@@ -254,6 +344,6 @@
       }
     ],
     "note": "",
-    "created_at": "2026-08-20 17:54:38"
+    "created_at": "2026-08-21 11:39:02"
   }
 ]

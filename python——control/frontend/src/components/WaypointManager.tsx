@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Plus, Eye, Pencil, Trash2, Save, X, MapPin, RotateCw, Crosshair } from 'lucide-react'
+import { Plus, Pencil, Trash2, Save, X, MapPin, RotateCw, Crosshair, Send, LoaderCircle } from 'lucide-react'
 import { api } from '../api'
-import type { Waypoint, RobotStatus, MoveType } from '../types'
+import type { Waypoint, RobotStatus, MoveType, ManualPointMotionProfile } from '../types'
 import { btnPrimary, btnGhost, btnDanger, card, inputCls, labelCls } from '../ui'
+import GripperPanel from './GripperPanel'
 
 const MOVE_OPTS: { k: MoveType; label: string }[] = [
   { k: 'joint', label: '关节' },
@@ -10,7 +11,6 @@ const MOVE_OPTS: { k: MoveType; label: string }[] = [
 ]
 const CART = ['X', 'Y', 'Z', 'RX', 'RY', 'RZ']
 const JN = ['J1', 'J2', 'J3', 'J4', 'J5', 'J6']
-
 function NumArray({
   value, onChange, labels,
 }: {
@@ -40,19 +40,30 @@ export default function WaypointManager({
   connected: boolean; status: RobotStatus
 }) {
   const [points, setPoints] = useState<Waypoint[]>([])
+  const [motionProfiles, setMotionProfiles] = useState<Record<string, ManualPointMotionProfile>>({})
   const [name, setName] = useState('')
   const [note, setNote] = useState('')
-  const [pvMode, setPvMode] = useState<MoveType>('linear')
-  const [pvSpeed, setPvSpeed] = useState(50)
+  const [pvMode, setPvMode] = useState<MoveType>('joint')
+  const [pvSpeed, setPvSpeed] = useState(0.225)
   const [editId, setEditId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
   const [editNote, setEditNote] = useState('')
   const [editPose, setEditPose] = useState<number[]>([0, 0, 0, 0, 0, 0])
   const [editJoints, setEditJoints] = useState<number[]>([0, 0, 0, 0, 0, 0])
   const [msg, setMsg] = useState('')
+  const [movingPointId, setMovingPointId] = useState<string | null>(null)
 
-  const load = () => api.points().then(setPoints).catch(() => {})
-  useEffect(() => { load() }, [])
+  const load = () => Promise.all([api.points(), api.pointMotionProfiles()])
+    .then(([loadedPoints, loadedProfiles]) => {
+      setPoints(loadedPoints)
+      setMotionProfiles(loadedProfiles)
+    })
+    .catch(() => {})
+  useEffect(() => {
+    load()
+    const timer = window.setInterval(load, 2000)
+    return () => window.clearInterval(timer)
+  }, [])
 
   const save = async () => {
     if (!name.trim()) { setMsg('请输入点位名称'); return }
@@ -64,13 +75,30 @@ export default function WaypointManager({
     } catch (e) { setMsg((e as Error).message) }
   }
 
-  const preview = async (p: Waypoint) => {
-    if (!connected) { setMsg('未连接机械臂'); return }
+  const moveToPoint = async (p: Waypoint) => {
+    if (!connected || !status.powered || !status.enabled) {
+      setMsg('需先连接机械臂、上电并使能'); return
+    }
     if (pvSpeed <= 0) { setMsg('速度需大于 0'); return }
+    const profile = motionProfiles[p.id]
+    const moveType = profile?.move_type ?? pvMode
+    const speed = profile?.speed ?? pvSpeed
+    const motionLabel = moveType === 'joint' ? '关节运动' : '直线运动'
+    const speedUnit = moveType === 'joint' ? 'rad/s' : 'mm/s'
+    if (!confirm(`确认以${motionLabel}移动到点位「${p.name}」？\n\n速度：${speed} ${speedUnit}\n\n请确认机械臂路径及周围空间安全。`)) return
     try {
-      await api.previewPoint(p.id, pvMode, pvSpeed)
-      setMsg(`预览移动至 ${p.name}`)
+      setMovingPointId(p.id)
+      await api.move({
+        move_type: moveType,
+        target: moveType === 'joint' ? p.joints : p.pose,
+        speed,
+        acc: moveType === 'linear' ? 100 : undefined,
+        tol: moveType === 'linear' ? 0.1 : undefined,
+        is_block: true,
+      })
+      setMsg(`已到达点位「${p.name}」`)
     } catch (e) { setMsg((e as Error).message) }
+    finally { setMovingPointId(null) }
   }
 
   const del = async (p: Waypoint) => {
@@ -130,14 +158,14 @@ export default function WaypointManager({
           </div>
         </div>
 
-        <div className={`${card} p-4 lg:col-span-2`}>
-          <h3 className="font-semibold text-slate-700 mb-3">预览运动设置</h3>
+        <div className={`${card} p-4 lg:col-span-1`}>
+          <h3 className="font-semibold text-slate-700 mb-3">移动到点位设置</h3>
           <div className="flex flex-wrap items-end gap-3">
             <div>
               <div className={labelCls}>运动方式</div>
               <div className="flex gap-1">
                 {MOVE_OPTS.map((m) => (
-                  <button key={m.k} onClick={() => setPvMode(m.k)}
+                  <button key={m.k} onClick={() => { setPvMode(m.k); setPvSpeed(m.k === 'joint' ? 0.225 : 50) }}
                     className={pvMode === m.k ? `${btnGhost} bg-brand-100 border-brand-400 text-brand-700` : btnGhost}>
                     {m.label}
                   </button>
@@ -151,6 +179,8 @@ export default function WaypointManager({
             <span className="text-xs text-slate-400">{pvMode === 'joint' ? 'rad/s (≤3.14)' : 'mm/s'}</span>
           </div>
         </div>
+
+        <GripperPanel />
       </div>
 
       <div className={`${card} p-4`}>
@@ -197,7 +227,15 @@ export default function WaypointManager({
                       {p.note && ` · ${p.note}`}
                     </div>
                   </div>
-                  <button className={btnGhost} onClick={() => preview(p)} disabled={!connected}><Eye size={15} /> 预览</button>
+                  <button
+                    className={btnPrimary}
+                    onClick={() => moveToPoint(p)}
+                    disabled={!connected || !status.powered || !status.enabled || movingPointId !== null}
+                    title="按上方的运动方式和速度移动到该点位"
+                  >
+                    {movingPointId === p.id ? <LoaderCircle size={15} className="animate-spin" /> : <Send size={15} />}
+                    {movingPointId === p.id ? '移动中' : '移动到此点'}
+                  </button>
                   <button className={btnGhost} onClick={() => startEdit(p)}><Pencil size={15} /> 编辑</button>
                   <button className={btnGhost} onClick={() => rename(p)}>重命名</button>
                   <button className={btnDanger} onClick={() => del(p)}><Trash2 size={15} /> 删除</button>

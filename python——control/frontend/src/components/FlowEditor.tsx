@@ -1,15 +1,18 @@
 import { useEffect, useState } from 'react'
 import {
   Play, Pause, Square, Save, Trash2, ChevronUp, ChevronDown, ListChecks, Plus, Grip,
-  Plug, PlugZap, RotateCw, AlertTriangle,
 } from 'lucide-react'
 import { api } from '../api'
-import type { Waypoint, Flow, FlowSegment, FlowRunState, MoveType, GripperActionType, GripperStatus, GripperInfo } from '../types'
+import type { Waypoint, Flow, FlowSegment, FlowRunState, CoordinationRunState, MoveType, GripperActionType } from '../types'
 import { btnPrimary, btnGhost, btnSuccess, btnDanger, card, inputCls, labelCls } from '../ui'
+import TransferSubflowPanel from './TransferSubflowPanel'
+import OrangeCappingSubflowPanel from './OrangeCappingSubflowPanel'
+import CombinedSubflowPanel from './CombinedSubflowPanel'
 
 const MOVE_OPTS: { k: MoveType; label: string }[] = [
   { k: 'joint', label: '关节' },
   { k: 'linear', label: '直线' },
+  { k: 'linear_z', label: '直线-Z' },
   { k: 'circular', label: '圆弧' },
 ]
 
@@ -23,7 +26,6 @@ const GRIPPER_OPTS: { k: GripperActionType; label: string }[] = [
   { k: 'set_speed', label: '设速度' },
 ]
 
-const GRIPPER_ACTION_TYPES = new Set<GripperActionType>(['initialize', 'open', 'close', 'move_to', 'set_force', 'set_speed'])
 
 export default function FlowEditor({ connected }: { connected: boolean }) {
   const [points, setPoints] = useState<Waypoint[]>([])
@@ -31,48 +33,36 @@ export default function FlowEditor({ connected }: { connected: boolean }) {
   const [segs, setSegs] = useState<FlowSegment[]>([])
   const [name, setName] = useState('')
   const [curId, setCurId] = useState<string | null>(null)
-  const [run, setRun] = useState<FlowRunState>({ status: 'idle', index: -1, flow_id: null, segments: 0 })
+  const [run, setRun] = useState<FlowRunState>({ status: 'idle', index: -1, flow_id: null, segments: 0, error: null })
   const [msg, setMsg] = useState('')
+  const [transferState, setTransferState] = useState<CoordinationRunState>({ status: 'idle', index: -1, steps: 32, current_step: '', error: null, logs: [], a5_ip: '192.168.1.102', mini_ip: '192.168.1.103' })
+  const [orangeState, setOrangeState] = useState<CoordinationRunState>({ status: 'idle', index: -1, steps: 96, current_step: '', error: null, logs: [], a5_ip: '192.168.1.102', mini_ip: '192.168.1.103' })
+  const [combinedState, setCombinedState] = useState<CoordinationRunState>({ status: 'idle', index: -1, steps: 123, current_step: '', error: null, logs: [], a5_ip: '192.168.1.102', mini_ip: '192.168.1.103' })
+  const [processTarget, setProcessTarget] = useState<'saved' | 'transfer' | 'orange' | 'combined'>('saved')
+  const [processBusy, setProcessBusy] = useState(false)
 
-  const [gInfo, setGInfo] = useState<GripperInfo | null>(null)
-  const [gSt, setGSt] = useState<GripperStatus | null>(null)
-  const [gPort, setGPort] = useState('')
-  const [gMsg, setGMsg] = useState('')
-  const [gBusy, setGBusy] = useState(false)
 
   const loadAll = () => {
     api.points().then(setPoints).catch(() => {})
     api.flows().then(setFlows).catch(() => {})
   }
-  const refreshGripper = () => {
-    api.gripperInfo().then(setGInfo).catch(() => {})
-    api.gripperStatus().then(setGSt).catch(() => {})
-  }
-  useEffect(() => { loadAll(); refreshGripper() }, [])
+  useEffect(() => { loadAll() }, [])
   useEffect(() => {
-    if (gSt?.connected) {
-      const t = setInterval(refreshGripper, 500)
-      return () => clearInterval(t)
+    const refreshSubflows = () => {
+      api.transferSubflowState().then(setTransferState).catch(() => {})
+      api.orangeCappingState().then(setOrangeState).catch(() => {})
+      api.combinedSubflowState().then(setCombinedState).catch(() => {})
     }
-  }, [gSt?.connected])
-  useEffect(() => {
-    if (gInfo && !gPort) setGPort(gInfo.default_port || '')
-  }, [gInfo])
+    refreshSubflows()
+    const timer = window.setInterval(refreshSubflows, 500)
+    return () => window.clearInterval(timer)
+  }, [])
   useEffect(() => {
     if (run.status === 'running' || run.status === 'paused') {
       const t = setInterval(() => api.flowState().then(setRun).catch(() => {}), 400)
       return () => clearInterval(t)
     }
   }, [run.status])
-
-  const gConnected = gSt?.connected ?? false
-
-  const gAct = async (fn: () => Promise<unknown>, label: string) => {
-    setGBusy(true); setGMsg('')
-    try { await fn(); setGMsg(`${label} 完成`); refreshGripper() }
-    catch (e) { setGMsg(`${label} 失败: ${(e as Error).message}`) }
-    finally { setGBusy(false) }
-  }
 
   const addSeg = (p: Waypoint) =>
     setSegs((s) => [...s, { point_id: p.id, move_type: 'linear', speed: 50, acc: 100, tol: 0.1, wait_after_arrival: 0, gripper: { type: 'none', delay: 0 } }])
@@ -89,6 +79,18 @@ export default function FlowEditor({ connected }: { connected: boolean }) {
   const updG = (i: number, patch: Partial<NonNullable<FlowSegment['gripper']>>) =>
     setSegs((s) => s.map((seg, j) => (j === i ? { ...seg, gripper: { type: 'none', delay: 0, ...seg.gripper, ...patch } } : seg)))
   const clearAll = () => { setSegs([]); setName(''); setCurId(null); setMsg('') }
+
+  const importJakaMini = async () => {
+    try {
+      const result = await api.importJakaMiniFlow()
+      setCurId(result.flow.id)
+      setName(result.flow.name)
+      setSegs(result.flow.segments.map((s) => ({ ...s })))
+      setMsg(result.message)
+      setFlows(await api.flows())
+      setPoints(await api.points())
+    } catch (e) { setMsg((e as Error).message) }
+  }
 
   const saveFlow = async () => {
     if (!name.trim()) { setMsg('请输入流程名称'); return }
@@ -121,115 +123,69 @@ export default function FlowEditor({ connected }: { connected: boolean }) {
   const start = async () => {
     if (!curId) { setMsg('请先保存流程'); return }
     if (!connected) { setMsg('未连接机械臂'); return }
-    // 检查流程中是否有使用夹爪动作
-    const hasGripperAction = segs.some((s) => GRIPPER_ACTION_TYPES.has((s.gripper?.type ?? 'none') as GripperActionType))
-    if (hasGripperAction && !gConnected) {
-      setMsg('⚠ 流程中包含夹爪动作，但夹爪未连接！请先在顶部连接夹爪后再执行流程。')
-      return
-    }
     try {
       setRun(await api.runFlow(curId))
       setMsg('流程开始执行')
     } catch (e) { setMsg((e as Error).message) }
   }
-  const ctrl = async (a: 'pause' | 'resume' | 'stop') => {
-    try { setRun(await api.flowControl(a)) } catch (e) { setMsg((e as Error).message) }
+  const processState = processTarget === 'saved' ? run : processTarget === 'transfer' ? transferState : processTarget === 'orange' ? orangeState : combinedState
+  const processActive = processState.status === 'running' || processState.status === 'paused'
+  const processControl = async (action: 'start' | 'pause' | 'resume' | 'stop') => {
+    setProcessBusy(true); setMsg('')
+    try {
+      if (processTarget === 'saved') {
+        if (action === 'start') setRun(await api.runFlow(curId!))
+        else setRun(await api.flowControl(action))
+      } else if (processTarget === 'transfer') {
+        if (action === 'start') setTransferState(await api.runTransferSubflow())
+        else setTransferState(await api.transferSubflowControl(action))
+      } else if (processTarget === 'orange') {
+        if (action === 'start') setOrangeState(await api.runOrangeCapping())
+        else setOrangeState(await api.orangeCappingControl(action))
+      } else {
+        if (action === 'start') setCombinedState(await api.runCombinedSubflow())
+        else setCombinedState(await api.combinedSubflowControl(action))
+      }
+    } catch (e) { setMsg((e as Error).message) }
+    finally { setProcessBusy(false) }
   }
 
   const ptName = (id: string) => points.find((p) => p.id === id)?.name ?? '?'
-  const running = run.status === 'running' || run.status === 'paused'
-  const hasGripperActionInFlow = segs.some((s) => GRIPPER_ACTION_TYPES.has((s.gripper?.type ?? 'none') as GripperActionType))
 
   return (
-    <div className="space-y-4">
+      <div className="space-y-4">
       {msg && <div className="text-sm text-brand-700 bg-brand-50 border border-brand-200 rounded-lg px-3 py-2">{msg}</div>}
-
-      {/* 夹爪控制条 */}
-      <div className={`${card} p-4`}>
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-brand-600 text-white flex items-center justify-center">
-              <Grip size={16} />
-            </div>
-            <div>
-              <div className="text-sm font-medium text-slate-700">末端夹爪</div>
-              <div className="text-xs text-slate-400">
-                {gConnected ? (gSt?.sim ? '已连接(仿真)' : '已连接') : '未连接'}
-                {hasGripperActionInFlow && !gConnected && (
-                  <span className="ml-1 text-red-500 font-medium">⚠ 流程中有夹爪动作</span>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {gMsg && <div className="text-xs text-brand-700 bg-brand-50 border border-brand-200 rounded px-2 py-1">{gMsg}</div>}
-
-          <div className="flex flex-wrap items-end gap-2">
-            <div>
-              <div className={`${labelCls} mb-0.5 text-xs`}>串口</div>
-              <input value={gPort} onChange={(e) => setGPort(e.target.value)} placeholder="如 COM13"
-                className={`${inputCls} w-24 py-1.5`} disabled={gConnected || gBusy} />
-            </div>
-            {!gConnected ? (
-              <button className={btnSuccess} disabled={gBusy}
-                onClick={() => gAct(() => api.gripperConnect(gPort || undefined), '连接夹爪')}>
-                <Plug size={15} /> 连接夹爪
-              </button>
-            ) : (
-              <button className={btnDanger} disabled={gBusy}
-                onClick={() => gAct(() => api.gripperDisconnect(), '断开夹爪')}>
-                <PlugZap size={15} /> 断开
-              </button>
-            )}
-            <button className={btnGhost} disabled={!gConnected || gBusy}
-              onClick={() => gAct(() => api.gripperInitialize(), '初始化夹爪')}>
-              <RotateCw size={15} /> 初始化
-            </button>
-          </div>
-
-          <div className="ml-auto flex items-center gap-2">
-            {hasGripperActionInFlow && !gConnected && (
-              <span className="inline-flex items-center gap-1 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-2 py-1">
-                <AlertTriangle size={14} /> 包含夹爪动作，需连接后才能执行
-              </span>
-            )}
-            <div className="text-xs text-slate-500">
-              位置 <span className="font-mono text-slate-700">{gSt?.position ?? '-'}</span> ·
-              力值 <span className="font-mono text-slate-700">{gSt?.force ?? '-'}</span> ·
-              <span className={`font-medium ${gSt?.moving ? 'text-amber-600' : 'text-emerald-600'}`}>
-                {!gConnected ? '-' : gSt?.moving ? '运动中' : '就绪'}
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
+      {run.error && <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2 whitespace-pre-wrap">{run.error}</div>}
 
       {/* 运行控制条 */}
       <div className={`${card} p-4`}>
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2">
-            <button className={btnSuccess} onClick={start} disabled={!curId || !connected || running || (hasGripperActionInFlow && !gConnected)}>
+            <select value={processTarget} onChange={(e) => setProcessTarget(e.target.value as typeof processTarget)} className={`${inputCls} py-1.5`} disabled={processBusy || processActive}>
+              <option value="saved">当前已加载流程</option><option value="transfer">取液子流程：紫色试管</option><option value="orange">橙色流程：开盖 → 滴液 → 盖回（1/2/3）</option><option value="combined">总流程：紫色取液 → 橙色三管开盖滴液盖回</option>
+            </select>
+            <button className={btnSuccess} onClick={() => processControl('start')} disabled={!connected || processBusy || processActive || (processTarget === 'saved' && !curId)}>
               <Play size={16} /> 开始
             </button>
-            <button className={btnGhost} onClick={() => ctrl('pause')} disabled={run.status !== 'running'}>
+            <button className={btnGhost} onClick={() => processControl('pause')} disabled={processBusy || processState.status !== 'running'}>
               <Pause size={16} /> 暂停
             </button>
-            <button className={btnGhost} onClick={() => ctrl('resume')} disabled={run.status !== 'paused'}>
+            <button className={btnGhost} onClick={() => processControl('resume')} disabled={processBusy || processState.status !== 'paused'}>
               <Play size={16} /> 继续
             </button>
-            <button className={btnDanger} onClick={() => ctrl('stop')} disabled={!running}>
+            <button className={btnDanger} onClick={() => processControl('stop')} disabled={processBusy || !processActive}>
               <Square size={16} /> 停止
             </button>
           </div>
           <div className="ml-auto flex items-center gap-3">
             <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
-              run.status === 'running' ? 'bg-emerald-100 text-emerald-700'
-              : run.status === 'paused' ? 'bg-amber-100 text-amber-700'
-              : run.status === 'stopped' ? 'bg-red-100 text-red-700'
+              processState.status === 'running' ? 'bg-emerald-100 text-emerald-700'
+              : processState.status === 'paused' ? 'bg-amber-100 text-amber-700'
+              : processState.status === 'stopped' ? 'bg-red-100 text-red-700'
               : 'bg-slate-100 text-slate-500'}`}>
-              {run.status === 'idle' ? '空闲' : run.status === 'running' ? '运行中' : run.status === 'paused' ? '已暂停' : '已停止'}
+              {processState.status === 'idle' ? '空闲' : processState.status === 'running' ? '运行中' : processState.status === 'paused' ? '已暂停' : '已停止'}
             </span>
-            {running && <span className="text-sm text-slate-600">进度 {run.index + 1} / {run.segments}</span>}
+            {processActive && <span className="text-sm text-slate-600">进度 {processState.index + 1} / {'steps' in processState ? processState.steps : processState.segments}</span>}
           </div>
         </div>
       </div>
@@ -351,21 +307,14 @@ export default function FlowEditor({ connected }: { connected: boolean }) {
         </div>
       </div>
 
-      {/* 已保存流程 */}
       <div className={`${card} p-4`}>
-        <h3 className="font-semibold text-slate-700 mb-3">已保存流程 ({flows.length})</h3>
-        <div className="space-y-2">
-          {flows.length === 0 && <div className="text-sm text-slate-400 py-2 text-center">暂无保存的流程</div>}
-          {flows.map((f) => (
-            <div key={f.id} className="flex items-center gap-3 border border-slate-200 rounded-lg px-3 py-2">
-              <div className="flex-1">
-                <span className="font-medium text-slate-700">{f.name}</span>
-                <span className="ml-2 text-xs text-slate-400">{f.segments.length} 段 · {f.created_at}</span>
-              </div>
-              <button className={btnGhost} onClick={() => loadFlow(f)}>加载</button>
-              <button className={btnDanger} onClick={() => delFlow(f)}><Trash2 size={15} /></button>
-            </div>
-          ))}
+        <h3 className="font-semibold text-slate-700 mb-3">流程库与子流程</h3>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-3 flex-wrap"><span className="font-medium text-slate-700">已保存流程 ({flows.length})</span><button className={btnGhost} onClick={importJakaMini}><Plus size={15} /> 导入 JAKA Mini 点位流程</button></div>
+          <div className="space-y-2">{flows.length === 0 && <div className="text-sm text-slate-400 py-2 text-center">暂无保存的流程</div>}{flows.map((f) => <div key={f.id} className="flex items-center gap-3 border border-slate-200 rounded-lg px-3 py-2"><div className="flex-1"><span className="font-medium text-slate-700">{f.name}</span><span className="ml-2 text-xs text-slate-400">{f.segments.length} 段 · {f.created_at}</span></div><button className={btnGhost} onClick={() => loadFlow(f)}>加载</button><button className={btnDanger} onClick={() => delFlow(f)}><Trash2 size={15} /></button></div>)}</div>
+          <TransferSubflowPanel connected={connected} showControls={false} />
+          <OrangeCappingSubflowPanel connected={connected} showControls={false} />
+          <CombinedSubflowPanel />
         </div>
       </div>
     </div>

@@ -1,4 +1,4 @@
-export type MoveType = 'joint' | 'linear' | 'circular'
+export type MoveType = 'joint' | 'linear' | 'linear_z' | 'circular'
 
 export interface RobotStatus {
   connected: boolean
@@ -19,6 +19,11 @@ export interface Waypoint {
   joints: number[]
   note: string
   created_at: string
+}
+
+export interface ManualPointMotionProfile {
+  move_type: MoveType
+  speed: number
 }
 
 export type GripperActionType =
@@ -57,6 +62,22 @@ export interface FlowRunState {
   index: number
   flow_id: string | null
   segments: number
+  error?: string | null
+}
+
+export interface CoordinationRunState {
+  status: RunStatus
+  index: number
+  steps: number
+  current_step: string
+  error?: string | null
+  logs: string[]
+  a5_ip: string
+  mini_ip: string
+}
+
+export interface TransferSubflowRunState extends CoordinationRunState {
+  phase?: string
 }
 
 export interface GripperRanges {
@@ -88,4 +109,38 @@ export interface GripperInfo {
   default_baud: number
   connected: boolean
   ranges: GripperRanges
+}
+
+export interface ZergStatus {
+  environment_ok: boolean
+  workspace: string
+  driver_managed: boolean
+  driver_running: boolean
+  ready: boolean
+  actions: {
+    open: boolean
+    close: boolean
+    rotate: boolean
+  }
+  error?: string | null
+  logs: string[]
+  started_at?: string | null
+  message?: string
+}
+
+export interface ZergResult {
+  ok: boolean
+  action?: 'open' | 'close' | 'rotate'
+  output: string
+}
+
+export interface PipetteStatus {
+  connected: boolean
+  port: string
+  address: string
+  baudrate: number
+  initialized: boolean
+  remaining_batches: number
+  last_status: string
+  last_error?: string | null
 }

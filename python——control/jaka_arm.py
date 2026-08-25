@@ -1,12 +1,23 @@
 # -*- coding: utf-8 -*-
 import os
 import sys
+import ctypes
 
-# 定位SDK目录并加入DLL搜索路径与模块搜索路径
-_SDK_DIR = os.path.normpath(os.path.join(
-    os.path.dirname(os.path.abspath(__file__)),
-    "..", "SDK V2.2.7", "SDK V2.2.7", "Windows", "python3", "x64"))
-os.add_dll_directory(_SDK_DIR)
+# 定位当前平台的 SDK。Linux 默认复用 Demo/JAKA_Mini2_Python_Test/sdk。
+_HERE = os.path.dirname(os.path.abspath(__file__))
+if os.name == "nt":
+    _SDK_DIR = os.path.normpath(os.path.join(
+        _HERE, "..", "SDK V2.2.7", "SDK V2.2.7", "Windows", "python3", "x64"))
+    os.add_dll_directory(_SDK_DIR)
+else:
+    _SDK_DIR = os.environ.get(
+        "JAKA_SDK_DIR",
+        os.path.abspath(os.path.join(_HERE, "..", "..", "JAKA_Mini2_Python_Test", "sdk")),
+    )
+    _LIB_PATH = os.path.join(_SDK_DIR, "libjakaAPI.so")
+    if not os.path.isfile(_LIB_PATH):
+        raise ImportError(f"JAKA Linux SDK not found: {_LIB_PATH}")
+    ctypes.CDLL(_LIB_PATH, mode=ctypes.RTLD_GLOBAL)
 sys.path.insert(0, _SDK_DIR)
 
 import jkrc

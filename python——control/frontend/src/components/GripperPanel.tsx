@@ -74,13 +74,13 @@ export default function GripperPanel() {
         <div>
           <div className={`${labelCls} mb-1`}>力值 {ranges ? `(${ranges.force[0]}-${ranges.force[1]})` : '(20-100)'}</div>
           <input type="number" min={ranges?.force[0] ?? 20} max={ranges?.force[1] ?? 100}
-            value={force} onChange={(e) => setForce(+e.target.value || 0)}
+            value={force} onChange={(e) => setForce(Math.max(ranges?.force[0] ?? 20, Math.min(ranges?.force[1] ?? 100, +e.target.value || 20)))}
             className={`${inputCls} w-20`} disabled={!connected || busy} />
         </div>
         <div>
           <div className={`${labelCls} mb-1`}>速度 {ranges ? `(${ranges.speed[0]}-${ranges.speed[1]})` : '(1-100)'}</div>
           <input type="number" min={ranges?.speed[0] ?? 1} max={ranges?.speed[1] ?? 100}
-            value={speed} onChange={(e) => setSpeed(+e.target.value || 0)}
+            value={speed} onChange={(e) => setSpeed(Math.max(ranges?.speed[0] ?? 1, Math.min(ranges?.speed[1] ?? 100, +e.target.value || 1)))}
             className={`${inputCls} w-20`} disabled={!connected || busy} />
         </div>
         <button className={btnGhost} disabled={!connected || busy}
