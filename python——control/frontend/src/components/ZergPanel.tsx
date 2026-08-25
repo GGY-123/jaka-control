@@ -30,7 +30,7 @@ export default function ZergPanel() {
   const [gripSpeed, setGripSpeed] = useState(20)
   const [gripCurrent, setGripCurrent] = useState(0.5)
   const [angle, setAngle] = useState(30)
-  const [rotateSpeed, setRotateSpeed] = useState(90)
+  const [rotateSpeed, setRotateSpeed] = useState(180)
   const [rotateCurrent, setRotateCurrent] = useState(0.5)
 
   const refresh = useCallback(async () => {

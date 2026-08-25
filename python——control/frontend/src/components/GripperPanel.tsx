@@ -8,7 +8,7 @@ export default function GripperPanel() {
   const [info, setInfo] = useState<GripperInfo | null>(null)
   const [st, setSt] = useState<GripperStatus | null>(null)
   const [port, setPort] = useState('')
-  const [force, setForce] = useState(30)
+  const [force, setForce] = useState(25)
   const [speed, setSpeed] = useState(50)
   const [pos, setPos] = useState(0)
   const [msg, setMsg] = useState('')

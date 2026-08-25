@@ -57,7 +57,7 @@ class PGIGripper:
         self.initialized = False
         self.lock = threading.Lock()
         # 模拟状态
-        self._force = 30
+        self._force = 25
         self._speed = 50
         self._pos = 0.0
         self._target = 0
@@ -144,6 +144,9 @@ class PGIGripper:
                 break
             time.sleep(0.1)
         self.initialized = st == 2
+        # Ensure the hardware starts with the same safe default shown by the UI.
+        if self.initialized:
+            self.set_force(self._force)
         return {"initialized": self.initialized, "state": st}
 
     # ---------- 参数设置 ----------

@@ -47,10 +47,24 @@ export interface FlowSegment {
   gripper?: GripperAction | null
 }
 
+export interface CodedWorkflowAction {
+  sequence: number
+  action_code: string
+  executor: string
+  device: string
+  action: string
+  table_action: string
+  config?: Record<string, unknown>
+  internal_steps?: string[]
+}
+
 export interface Flow {
   id: string
   name: string
-  segments: FlowSegment[]
+  segments?: FlowSegment[]
+  actions?: CodedWorkflowAction[]
+  flow_type?: string
+  execution_mode?: string
   note: string
   created_at: string
 }

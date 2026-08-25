@@ -55,6 +55,7 @@ MOVE_TYPES = {"joint", "linear", "linear_z", "circular"}
 COORD_BASE, COORD_JOINT, COORD_TOOL = 0, 1, 2
 ABS, INCR = 0, 1
 ORANGE_CAPPING_END_3_LINEAR_SPEED = 1.0
+ZERG_ROTATE_DEFAULT_SPEED = 180.0
 MANUAL_POINT_MOTION_PROFILES = {
     "p_abfac73e": {"move_type": "linear", "speed": ORANGE_CAPPING_END_3_LINEAR_SPEED},
     "p_1c109aae": {"move_type": "linear", "speed": ORANGE_CAPPING_END_3_LINEAR_SPEED},
@@ -225,7 +226,7 @@ class ZergGripReq(BaseModel):
 
 class ZergRotateReq(BaseModel):
     angle_deg: float = Field(..., ge=-36000.0, le=36000.0)
-    speed_deg_s: float = Field(90.0, ge=1.0, le=1080.0)
+    speed_deg_s: float = Field(ZERG_ROTATE_DEFAULT_SPEED, ge=1.0, le=1080.0)
     current_a: float = Field(0.5, ge=0.2, le=1.0)
 
 
@@ -1285,7 +1286,7 @@ class CoordinatedWorkflowRunner:
             self._checkpoint("A5：旋转夹爪上方")
             self._a5_move("p_6d9b3168", "joint", 0.5)
             self._checkpoint("旋转夹爪：逆时针 360 度")
-            self._zerg_action("rotate", angle=-360.0, speed=90.0, current=0.5)
+            self._zerg_action("rotate", angle=-360.0, speed=ZERG_ROTATE_DEFAULT_SPEED, current=0.5)
             self._checkpoint("旋转夹爪：张开")
             self._zerg_action("open", speed=20.0, current=0.5)
             self._checkpoint("A5：紫色终点上方")
@@ -1329,7 +1330,7 @@ class CoordinatedWorkflowRunner:
             self._checkpoint("A5：TCP RZ 顺时针 90 度")
             self._a5_rotate_rz_clockwise_90()
             self._checkpoint("旋转夹爪：逆时针 360 度")
-            self._zerg_action("rotate", angle=-360.0, speed=90.0, current=0.5)
+            self._zerg_action("rotate", angle=-360.0, speed=ZERG_ROTATE_DEFAULT_SPEED, current=0.5)
             self._checkpoint("旋转夹爪：张开")
             self._zerg_action("open", speed=20.0, current=0.5)
             self._checkpoint("A5：旋转夹爪上方")
@@ -1666,7 +1667,7 @@ class OrangeCappingSubflowRunner(TransferSubflowRunner):
             try:
                 self.zerg.action(
                     "rotate",
-                    f"{{angle_deg: {angle_deg}, speed_deg_s: 90, current_a: 0.5}}",
+                    f"{{angle_deg: {angle_deg}, speed_deg_s: {ZERG_ROTATE_DEFAULT_SPEED}, current_a: 0.5}}",
                     30,
                 )
             except Exception as exc:
@@ -1679,7 +1680,7 @@ class OrangeCappingSubflowRunner(TransferSubflowRunner):
         time.sleep(0.1)
         # At 90 deg/s one full turn lasts about four seconds.  Match the
         # Z-motion duration to that turn so it moves throughout the rotation.
-        z_speed = max(0.1, abs(z_delta_mm) * 90.0 / 360.0)
+        z_speed = max(0.1, abs(z_delta_mm) * ZERG_ROTATE_DEFAULT_SPEED / 360.0)
         self._move_a5_z(z_delta_mm, label, speed_mm_s=z_speed)
         rotate_thread.join(timeout=35.0)
         if rotate_thread.is_alive():
@@ -1744,7 +1745,7 @@ class OrangeCappingSubflowRunner(TransferSubflowRunner):
                 self._rotate_with_a5_z(angle_deg=360, z_delta_mm=0.5, label="A5 Z 上升 0.5 mm")
             else:
                 self._checkpoint("旋转夹爪：顺时针 360 度（3/3）")
-                self.zerg.action("rotate", "{angle_deg: 360, speed_deg_s: 90, current_a: 0.5}", 30)
+                self.zerg.action("rotate", f"{{angle_deg: 360, speed_deg_s: {ZERG_ROTATE_DEFAULT_SPEED}, current_a: 0.5}}", 30)
         self._a5_step("A5：旋转夹爪上方", "p_ed5f1653", "joint", 0.45)
         self._a5_step("A5：旋转夹爪上方向后移动", "p_c181a223", "joint", 0.45)
         self._mini_dispense_orange()
@@ -1753,7 +1754,7 @@ class OrangeCappingSubflowRunner(TransferSubflowRunner):
         self._checkpoint("A5：过渡点下压 2 mm（慢）")
         self._lower_a5_z(2.0)
         self._checkpoint("旋转夹爪：逆时针 360 度（1/2）")
-        self.zerg.action("rotate", "{angle_deg: -360, speed_deg_s: 90, current_a: 0.5}", 30)
+        self.zerg.action("rotate", f"{{angle_deg: -360, speed_deg_s: {ZERG_ROTATE_DEFAULT_SPEED}, current_a: 0.5}}", 30)
         self._checkpoint("旋转夹爪逆时针 360 度 + A5 Z 下探 1 mm（2/2）")
         self._rotate_with_a5_z(angle_deg=-360, z_delta_mm=-1.0, label="A5 Z 下探 1 mm")
         self._checkpoint("旋转夹爪：张开")
@@ -2360,6 +2361,8 @@ def run_flow(fid: str):
     flow = next((f for f in flows if f["id"] == fid), None)
     if not flow:
         raise HTTPException(404, "流程不存在")
+    if flow.get("execution_mode") == "combined_subflow":
+        raise HTTPException(400, "这是编码总流程；请在流程编辑顶部选择“总流程”执行")
     runner.run(flow)
     return runner.state()
 

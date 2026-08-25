@@ -85,7 +85,7 @@ export default function FlowEditor({ connected }: { connected: boolean }) {
       const result = await api.importJakaMiniFlow()
       setCurId(result.flow.id)
       setName(result.flow.name)
-      setSegs(result.flow.segments.map((s) => ({ ...s })))
+      setSegs((result.flow.segments ?? []).map((s) => ({ ...s })))
       setMsg(result.message)
       setFlows(await api.flows())
       setPoints(await api.points())
@@ -109,8 +109,10 @@ export default function FlowEditor({ connected }: { connected: boolean }) {
   }
 
   const loadFlow = (f: Flow) => {
-    setCurId(f.id); setName(f.name); setSegs(f.segments.map((s) => ({ ...s })))
-    setMsg(`已加载流程「${f.name}」`)
+    setCurId(f.id); setName(f.name); setSegs((f.segments ?? []).map((s) => ({ ...s })))
+    setMsg(f.execution_mode === 'combined_subflow'
+      ? `已加载编码总流程「${f.name}」；请在顶部选择“总流程”执行。`
+      : `已加载流程「${f.name}」`)
   }
 
   const delFlow = async (f: Flow) => {
@@ -311,7 +313,7 @@ export default function FlowEditor({ connected }: { connected: boolean }) {
         <h3 className="font-semibold text-slate-700 mb-3">流程库与子流程</h3>
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-3 flex-wrap"><span className="font-medium text-slate-700">已保存流程 ({flows.length})</span><button className={btnGhost} onClick={importJakaMini}><Plus size={15} /> 导入 JAKA Mini 点位流程</button></div>
-          <div className="space-y-2">{flows.length === 0 && <div className="text-sm text-slate-400 py-2 text-center">暂无保存的流程</div>}{flows.map((f) => <div key={f.id} className="flex items-center gap-3 border border-slate-200 rounded-lg px-3 py-2"><div className="flex-1"><span className="font-medium text-slate-700">{f.name}</span><span className="ml-2 text-xs text-slate-400">{f.segments.length} 段 · {f.created_at}</span></div><button className={btnGhost} onClick={() => loadFlow(f)}>加载</button><button className={btnDanger} onClick={() => delFlow(f)}><Trash2 size={15} /></button></div>)}</div>
+          <div className="space-y-2">{flows.length === 0 && <div className="text-sm text-slate-400 py-2 text-center">暂无保存的流程</div>}{flows.map((f) => <div key={f.id} className="flex items-center gap-3 border border-slate-200 rounded-lg px-3 py-2"><div className="flex-1"><span className="font-medium text-slate-700">{f.name}</span><span className="ml-2 text-xs text-slate-400">{f.actions?.length ?? f.segments?.length ?? 0} {f.actions ? '条编码动作' : '段'} · {f.created_at}</span></div><button className={btnGhost} onClick={() => loadFlow(f)}>加载</button><button className={btnDanger} onClick={() => delFlow(f)}><Trash2 size={15} /></button></div>)}</div>
           <TransferSubflowPanel connected={connected} showControls={false} />
           <OrangeCappingSubflowPanel connected={connected} showControls={false} />
           <CombinedSubflowPanel />
