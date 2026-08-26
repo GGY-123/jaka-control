@@ -8,5 +8,6 @@ build/
 log/
 *.db
 *.tar.gz
+*.zip
 *.wps
 *.egg-info/
