@@ -1,0 +1,12 @@
+# Values <= 0 use the driver's defaults.
+float32 speed_mm_s
+float32 current_a
+---
+bool success
+string message
+float32 final_position_mm
+uint16 status
+---
+float32 position_mm
+uint16 status
+

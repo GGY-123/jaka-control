@@ -31,16 +31,16 @@ const JOINTS = [
 ] as const
 
 function HoldButton({
-  label, onStart, onStop,
+  label, onStart, onStop, disabled = false,
 }: {
-  label: string; onStart: () => void; onStop: () => void
+  label: string; onStart: () => void; onStop: () => void; disabled?: boolean
 }) {
   const [active, setActive] = useState(false)
   const start = () => { setActive(true); onStart() }
   const stop = () => { if (active) { setActive(false); onStop() } }
   return (
     <button
-      disabled={!onStart}
+      disabled={disabled || !onStart}
       onPointerDown={start}
       onPointerUp={stop}
       onPointerLeave={stop}
@@ -53,23 +53,24 @@ function HoldButton({
 }
 
 function AxisRow({
-  label, onStartNeg, onStartPos, onStop,
+  label, onStartNeg, onStartPos, onStop, disabled = false,
 }: {
   label: string
-  onStartNeg: () => void; onStartPos: () => void; onStop: () => void
+  onStartNeg: () => void; onStartPos: () => void; onStop: () => void; disabled?: boolean
 }) {
   return (
     <div className="flex items-center gap-2">
       <span className="w-9 text-xs font-medium text-slate-500">{label}</span>
-      <HoldButton label="−" onStart={onStartNeg} onStop={onStop} />
-      <HoldButton label="+" onStart={onStartPos} onStop={onStop} />
+      <HoldButton label="−" onStart={onStartNeg} onStop={onStop} disabled={disabled} />
+      <HoldButton label="+" onStart={onStartPos} onStop={onStop} disabled={disabled} />
     </div>
   )
 }
 
-export default function ManualControl({ connected, status }: { connected: boolean; status: RobotStatus }) {
+export default function ManualControl({ connected, status, locked = false }: { connected: boolean; status: RobotStatus; locked?: boolean }) {
   const [coord, setCoord] = useState(0)
   const [transVel, setTransVel] = useState(20)
+  const [zVel, setZVel] = useState(10)
   const [rotVel, setRotVel] = useState(0.5)
   const [jointVel, setJointVel] = useState(0.5)
   const [target, setTarget] = useState<number[]>([0, 0, 0, 0, 0, 0])
@@ -80,8 +81,10 @@ export default function ManualControl({ connected, status }: { connected: boolea
   const jogKey = useRef<string | null>(null)
   const tcp = status.tcp ?? [0, 0, 0, 0, 0, 0]
   const joints = status.joints ?? [0, 0, 0, 0, 0, 0]
+  const manualDisabled = !connected || locked
 
   const startJog = (axis: number, dir: number, vel: number) => {
+    if (locked) return
     if (jogKey.current) api.jogStop().catch(() => {})
     api.jog(axis, 2, coord, vel * dir).catch(() => {})
     jogKey.current = `${axis}:${dir}`
@@ -91,6 +94,7 @@ export default function ManualControl({ connected, status }: { connected: boolea
     jogKey.current = null
   }
   const startJointJog = (axis: number, dir: number) => {
+    if (locked) return
     if (jogKey.current) api.jogStop().catch(() => {})
     api.jog(axis, 2, 1, jointVel * dir).catch(() => {})
     jogKey.current = `j${axis}:${dir}`
@@ -115,12 +119,13 @@ export default function ManualControl({ connected, status }: { connected: boolea
   }
   const onJoyEnd = () => { if (jogKey.current !== null) stopJog() }
 
-  const velOf = (v: 'trans' | 'rot') => (v === 'trans' ? transVel : rotVel)
+  const velOf = (axis: number, v: 'trans' | 'rot') =>
+    axis === 2 ? zVel : (v === 'trans' ? transVel : rotVel)
   const useCurrentTcp = () => setTarget(tcp.map((value) => Number(value.toFixed(6))))
   const updateTarget = (index: number, value: number) =>
     setTarget((current) => current.map((item, i) => i === index ? value : item))
   const moveToTarget = async () => {
-    if (!connected || targetBusy) return
+    if (!connected || locked || targetBusy) return
     if (!target.every(Number.isFinite)) {
       setTargetMessage('请输入有效的 TCP 数值')
       return
@@ -142,6 +147,7 @@ export default function ManualControl({ connected, status }: { connected: boolea
   return (
     <div className="space-y-4">
       {!connected && <div className="text-sm text-slate-400">未连接机械臂，无法手动控制。</div>}
+      {locked && <div className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">总流程正在运行，手动控制已锁定；请使用“停止总流程”或等待流程结束后再操作。</div>}
 
       <div className="flex flex-wrap gap-2">
         {['X', 'Y', 'Z', 'RX', 'RY', 'RZ'].map((l, i) => (
@@ -159,7 +165,7 @@ export default function ManualControl({ connected, status }: { connected: boolea
             {COORDS.map((c) => (
               <button
                 key={c.k}
-                disabled={!connected}
+                disabled={manualDisabled}
                 onClick={() => { stopJog(); setCoord(c.k) }}
                 className={coord === c.k ? `${btnAxis} bg-brand-100 border-brand-400 text-brand-700` : btnAxis}
               >
@@ -172,14 +178,21 @@ export default function ManualControl({ connected, status }: { connected: boolea
           <div className={`${labelCls} mb-1`}>平移速度 mm/s <span className="text-amber-600">（上限 200）</span></div>
           <input type="number" min={1} max={200} value={transVel}
             onChange={(e) => setTransVel(Math.min(200, Math.max(1, +e.target.value || 1)))}
-            className={`${inputCls} w-24`} disabled={!connected} />
+            className={`${inputCls} w-24`} disabled={manualDisabled} />
           <div className="text-xs text-slate-400 mt-0.5">建议调试 5~30，快速移动 ≤100</div>
+        </div>
+        <div>
+          <div className={`${labelCls} mb-1`}>Z 轴点动速度 mm/s <span className="text-amber-600">（上限 200）</span></div>
+          <input type="number" min={1} max={200} value={zVel}
+            onChange={(e) => setZVel(Math.min(200, Math.max(1, +e.target.value || 1)))}
+            className={`${inputCls} w-24`} disabled={manualDisabled} />
+          <div className="text-xs text-slate-400 mt-0.5">仅用于 Z − / +，默认 10</div>
         </div>
         <div>
           <div className={`${labelCls} mb-1`}>旋转速度 rad/s <span className="text-amber-600">（上限 2）</span></div>
           <input type="number" min={0.05} max={2} step={0.05} value={rotVel}
             onChange={(e) => setRotVel(Math.min(2, Math.max(0.05, +e.target.value || 0.05)))}
-            className={`${inputCls} w-24`} disabled={!connected} />
+            className={`${inputCls} w-24`} disabled={manualDisabled} />
           <div className="text-xs text-slate-400 mt-0.5">建议调试 0.1~0.5</div>
         </div>
         <div className="ml-auto">
@@ -214,7 +227,7 @@ export default function ManualControl({ connected, status }: { connected: boolea
             </h3>
             <p className="text-xs text-slate-500 mt-1">基坐标系，X/Y/Z 为 mm，RX/RY/RZ 为 rad。执行为阻塞直线运动。</p>
           </div>
-          <button className={btnGhost} onClick={useCurrentTcp} disabled={!connected || targetBusy}>
+          <button className={btnGhost} onClick={useCurrentTcp} disabled={manualDisabled || targetBusy}>
             <Crosshair size={15} /> 使用当前位姿
           </button>
         </div>
@@ -224,7 +237,7 @@ export default function ManualControl({ connected, status }: { connected: boolea
               <span className={`${labelCls} block mb-1`}>{label}</span>
               <input type="number" step="0.001" value={target[index]}
                 onChange={(event) => updateTarget(index, Number(event.target.value))}
-                className={`${inputCls} w-full min-w-0`} disabled={!connected || targetBusy} />
+                className={`${inputCls} w-full min-w-0`} disabled={manualDisabled || targetBusy} />
             </label>
           ))}
         </div>
@@ -233,15 +246,15 @@ export default function ManualControl({ connected, status }: { connected: boolea
             <span className={`${labelCls} block mb-1`}>速度 (mm/s)</span>
             <input type="number" min={1} max={200} value={targetSpeed}
               onChange={(event) => setTargetSpeed(Math.min(200, Math.max(1, Number(event.target.value) || 1)))}
-              className={`${inputCls} w-28`} disabled={!connected || targetBusy} />
+              className={`${inputCls} w-28`} disabled={manualDisabled || targetBusy} />
           </label>
           <label>
             <span className={`${labelCls} block mb-1`}>加速度 (mm/s²)</span>
             <input type="number" min={1} max={5000} value={targetAcc}
               onChange={(event) => setTargetAcc(Math.min(5000, Math.max(1, Number(event.target.value) || 1)))}
-              className={`${inputCls} w-32`} disabled={!connected || targetBusy} />
+              className={`${inputCls} w-32`} disabled={manualDisabled || targetBusy} />
           </label>
-          <button className={btnPrimary} onClick={moveToTarget} disabled={!connected || targetBusy}>
+          <button className={btnPrimary} onClick={moveToTarget} disabled={manualDisabled || targetBusy}>
             <Send size={16} /> {targetBusy ? '运动执行中' : '直线移动到此点'}
           </button>
           {targetMessage && <span className={`text-sm ${targetMessage.startsWith('运动失败') ? 'text-red-600' : 'text-emerald-600'}`}>{targetMessage}</span>}
@@ -253,7 +266,7 @@ export default function ManualControl({ connected, status }: { connected: boolea
           <h3 className="font-semibold text-slate-700 mb-3 self-start flex items-center gap-2">
             <Move3d size={18} className="text-brand-600" /> X / Y 摇杆
           </h3>
-          <Joystick onMove={onJoyMove} onEnd={onJoyEnd} />
+          <Joystick onMove={onJoyMove} onEnd={onJoyEnd} disabled={manualDisabled} />
           <div className="text-xs text-slate-400 mt-3">松手自动回中并停止运动</div>
         </div>
 
@@ -264,9 +277,10 @@ export default function ManualControl({ connected, status }: { connected: boolea
               <AxisRow
                 key={a.axis}
                 label={a.label}
-                onStartNeg={() => startJog(a.axis, -1, velOf(a.vel))}
-                onStartPos={() => startJog(a.axis, 1, velOf(a.vel))}
+                onStartNeg={() => startJog(a.axis, -1, velOf(a.axis, a.vel))}
+                onStartPos={() => startJog(a.axis, 1, velOf(a.axis, a.vel))}
                 onStop={stopJog}
+                disabled={manualDisabled}
               />
             ))}
           </div>
@@ -282,7 +296,7 @@ export default function ManualControl({ connected, status }: { connected: boolea
             <span className="text-xs text-slate-400">关节速度</span>
             <input type="number" min={0.05} max={3.14} step={0.05} value={jointVel}
               onChange={(e) => setJointVel(Math.min(3.14, Math.max(0.05, +e.target.value || 0.05)))}
-              className={`${inputCls} w-24`} disabled={!connected} />
+              className={`${inputCls} w-24`} disabled={manualDisabled} />
             <span className="text-xs text-slate-400">rad/s（上限 3.14 ≈180°/s）</span>
           </div>
         </div>
@@ -300,8 +314,8 @@ export default function ManualControl({ connected, status }: { connected: boolea
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <HoldButton label="−" onStart={() => startJointJog(j.axis, -1)} onStop={stopJog} />
-                  <HoldButton label="+" onStart={() => startJointJog(j.axis, 1)} onStop={stopJog} />
+                  <HoldButton label="−" onStart={() => startJointJog(j.axis, -1)} onStop={stopJog} disabled={manualDisabled} />
+                  <HoldButton label="+" onStart={() => startJointJog(j.axis, 1)} onStop={stopJog} disabled={manualDisabled} />
                 </div>
               </div>
             )
@@ -310,8 +324,10 @@ export default function ManualControl({ connected, status }: { connected: boolea
         <div className="text-xs text-slate-400 mt-2">按住 −/+ 持续点动，松开自动停止。关节坐标系 coord=1，独立控制每个关节角度。</div>
       </div>
 
-      <GripperPanel />
-      <PipettePanel />
+      <div className={locked ? 'pointer-events-none opacity-50' : ''}>
+        <GripperPanel />
+        <PipettePanel />
+      </div>
     </div>
   )
 }

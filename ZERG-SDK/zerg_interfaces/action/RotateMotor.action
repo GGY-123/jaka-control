@@ -1,0 +1,15 @@
+# Relative rotation in degrees. Positive is clockwise; negative is counterclockwise.
+# Examples: 720 = two clockwise turns, -360 = one counterclockwise turn.
+float64 angle_deg
+# Values <= 0 use the driver's defaults.
+float32 speed_deg_s
+float32 current_a
+---
+bool success
+string message
+float64 final_angle_deg
+uint16 status
+---
+float64 angle_deg
+uint16 status
+

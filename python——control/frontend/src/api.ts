@@ -41,6 +41,8 @@ async function req<T>(path: string, opts?: RequestInit): Promise<T> {
 
 export const api = {
   info: () => req<{ sim: boolean; default_ip: string; move_types: string[] }>('/info'),
+  robots: () => req<{ active_robot: 'a5' | 'mini'; robots: Record<'a5' | 'mini', RobotStatus> }>('/robots'),
+  selectRobot: (id: 'a5' | 'mini') => req<{ active_robot: 'a5' | 'mini'; status: RobotStatus }>(`/robots/${id}/select`, { method: 'POST' }),
   connect: (ip: string) => req<{ connected: boolean }>('/connect', { method: 'POST', body: JSON.stringify({ ip }) }),
   disconnect: () => req<{ connected: boolean }>('/disconnect', { method: 'POST' }),
   powerOn: () => req<{ powered: boolean; enabled: boolean }>('/power_on', { method: 'POST' }),

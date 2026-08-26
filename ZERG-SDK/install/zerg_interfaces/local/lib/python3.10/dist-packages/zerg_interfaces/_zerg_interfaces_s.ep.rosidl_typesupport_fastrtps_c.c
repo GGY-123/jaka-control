@@ -1,0 +1,1 @@
+/home/sxkc/Demo/ZERG-SDK/build/zerg_interfaces/rosidl_generator_py/zerg_interfaces/_zerg_interfaces_s.ep.rosidl_typesupport_fastrtps_c.c

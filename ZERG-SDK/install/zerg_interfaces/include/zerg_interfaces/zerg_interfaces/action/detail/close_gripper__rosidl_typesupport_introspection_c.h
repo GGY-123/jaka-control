@@ -1,0 +1,1 @@
+/home/sxkc/Demo/ZERG-SDK/build/zerg_interfaces/rosidl_typesupport_introspection_c/zerg_interfaces/action/detail/close_gripper__rosidl_typesupport_introspection_c.h

@@ -1,0 +1,1 @@
+/home/sxkc/Demo/ZERG-SDK/build/zerg_interfaces/rosidl_generator_rs/zerg_interfaces/rust/src/action.rs

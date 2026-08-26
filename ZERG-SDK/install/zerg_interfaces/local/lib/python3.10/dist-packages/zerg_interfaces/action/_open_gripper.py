@@ -1,0 +1,1 @@
+/home/sxkc/Demo/ZERG-SDK/build/zerg_interfaces/rosidl_generator_py/zerg_interfaces/action/_open_gripper.py

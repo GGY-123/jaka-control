@@ -1,0 +1,1 @@
+/home/sxkc/Demo/ZERG-SDK/build/zerg_interfaces/rosidl_generator_c/zerg_interfaces/action/close_gripper.h

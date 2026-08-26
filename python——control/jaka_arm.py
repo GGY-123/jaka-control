@@ -3,7 +3,7 @@ import os
 import sys
 import ctypes
 
-# 定位当前平台的 SDK。Linux 默认复用 Demo/JAKA_Mini2_Python_Test/sdk。
+# 定位当前平台的 SDK。Linux 默认使用仓库内 JAKA_Mini2_Python_Test/sdk。
 _HERE = os.path.dirname(os.path.abspath(__file__))
 if os.name == "nt":
     _SDK_DIR = os.path.normpath(os.path.join(
@@ -12,7 +12,7 @@ if os.name == "nt":
 else:
     _SDK_DIR = os.environ.get(
         "JAKA_SDK_DIR",
-        os.path.abspath(os.path.join(_HERE, "..", "..", "JAKA_Mini2_Python_Test", "sdk")),
+        os.path.abspath(os.path.join(_HERE, "..", "JAKA_Mini2_Python_Test", "sdk")),
     )
     _LIB_PATH = os.path.join(_SDK_DIR, "libjakaAPI.so")
     if not os.path.isfile(_LIB_PATH):

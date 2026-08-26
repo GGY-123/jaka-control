@@ -2,11 +2,12 @@ import { useRef, useState, useCallback } from 'react'
 
 interface Props {
   size?: number
+  disabled?: boolean
   onMove?: (dx: number, dy: number) => void
   onEnd?: () => void
 }
 
-export default function Joystick({ size = 180, onMove, onEnd }: Props) {
+export default function Joystick({ size = 180, disabled = false, onMove, onEnd }: Props) {
   const ref = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState({ x: 0, y: 0 })
   const dragging = useRef(false)
@@ -33,6 +34,7 @@ export default function Joystick({ size = 180, onMove, onEnd }: Props) {
   )
 
   const onDown = (e: React.PointerEvent) => {
+    if (disabled) return
     dragging.current = true
     e.currentTarget.setPointerCapture(e.pointerId)
     handle(e.clientX, e.clientY)
@@ -53,7 +55,7 @@ export default function Joystick({ size = 180, onMove, onEnd }: Props) {
       onPointerMove={onMoveEvt}
       onPointerUp={onUp}
       onPointerLeave={onUp}
-      className="relative rounded-full bg-slate-100 border border-slate-200 touch-none cursor-grab active:cursor-grabbing shadow-inner"
+      className={`relative rounded-full bg-slate-100 border border-slate-200 touch-none shadow-inner ${disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-grab active:cursor-grabbing'}`}
       style={{ width: size, height: size }}
     >
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">

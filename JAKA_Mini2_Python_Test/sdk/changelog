@@ -1,0 +1,97 @@
+---------------------- V2.2.7 -----------------------
+2025年3月25日
+- 修复上一版本C#编译失败问题
+- 修改头文件传感器部分接口注释
+- 新增接口update_tio_rs_signal
+
+---------------------- V2.2.6 -----------------------
+2025年3月12日
+- 修复grpc圆弧运动传入圈数无效问题
+- 修复set_torque_sensor_mode和set_ft_ctrl_mode返回超时
+- 新增心跳功能进行网络异常检测及运动处理,恢复set_network_exception_handle接口
+
+---------------------- V2.1.9 -----------------------
+2024年3月29日
+- 增加获取SDK日志路径功能（get_SDK_filepath, static_Get_SDK_filepath）
+- 修复10001端口指令错误重发的情况
+- 修复set_ft_ctrl_frame接口无法使用的问题
+
+---------------------- V2.1.8 -----------------------
+2024年2月23日
+- 增加带姿态速度和姿态加速度的直线运动接口
+- 增加带圆弧中间点运动模式的圆弧运动接口
+---------------------- V2.1.7_LC2 -----------------------
+2023年10月31日
+- 增加获取安装角度的接口
+
+---------------------- V2.1.7_LC1 -----------------------
+2023年10月25日
+- 增加设置超出限制的角度值时的报错，更新版本号为SDK2.1.7_LC1
+
+---------------------- V2.1.7_LC -----------------------
+2023年10月19日
+- 增加set_installation_angle接口用以设置安装角度
+
+---------------------- V2.1.7dev-5 -----------------------
+- 修改如下接口, 参数从string修改为char[], 处理字符串传递问题
+int get_controller_ip(string controller_name, StringBuilder ip);
+int create_handler(string ip, ref int handle);
+int program_load(ref int handle, string file);
+int set_tool_data(ref int handle, int id, ref JKTYPE.CartesianPose tcp, string name);
+int set_user_frame_data(ref int handle, int id, ref JKTYPE.CartesianPose user_frame, string name);
+int set_traj_sample_mode(ref int i, bool mode, string filename);
+int rename_traj_file_name(ref int i, string src, string dest);
+int remove_traj_file(ref int i, string filename);
+int set_SDK_filepath(ref int i, string filepath);
+int set_torque_sensor_comm(ref int i, int type, string ip_addr, int port);
+int del_tio_rs_signal(ref int i, string sig_name);
+int download_file(ref int i, string local, string remote, int opt);
+int upload_file(ref int i, string local, string remote, int opt);
+int del_ftp_file(ref int i, string remote, int opt);
+int get_ftp_dir(ref int i, string remote, int type, StringBuilder ret);
+
+---------------------- V2.1.7dev-4 -----------------------
+2023年11月9日
+- 从RobotStatus中获取到状态偶然性为0的问题
+
+---------------------- V2.1.6dev-3 -----------------------
+2023年10月13日
+- 修复circular_move, circular_move_extend 单位不正确的问题
+
+2023年10月24日
+- 修复send_tio_rs_command无法发送超过0x7f的值
+
+---------------------- V2.1.6dev-2 -----------------------
+2023年9月1日
+- 修复支持C#力矩传感器乱码导致崩溃的问题
+
+2023年9月12日
+- 修复C# get_robot_status 闪退的问题
+
+---------------------- V2.1.6dev-1 -----------------------
+- 修复支持realTorque的机器上未能正确获取的问题
+
+---------------------- V2.1.5dev-1 -----------------------
+2023年7月1日
+- 修复 python get_robot_status 调用抛出异常的问题
+
+---------------------- V2.1.4_9dev -----------------------
+2023年6月12日
+- 修复 c++ joint_move_extend 圆弧转接无法使用的问题。
+
+---------------------- V2.1.4_8dev -----------------------
+2023年6月9日
+- 修复ftp存在upload后偶尔不能download的问题。
+
+2023年6月7日
+- 修复函数is_in_pos返回true, 但是运动不到位的问题(RC1.5.13.8之后可能发生)。
+- 修复与外部使用相同库，导致函数名称冲突的问题。
+
+---------------------- V2.1.4_5dev -----------------------
+2023年4月13日
+- 添加C代码中handler分配策略,修复多次create,destory导致handler不唯一的问题。
+- 修复get_tcp_position在断网状态下未正确返回错误码的问题。
+
+2023年3月24日
+- 停止支持运行.ngc的脚本程序。
+- 修复c#、c、c++模拟输出为整数的问题。

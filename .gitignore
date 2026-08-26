@@ -2,3 +2,11 @@
 __pycache__/
 *.pyc
 .idea/
+node_modules/
+dist/
+build/
+log/
+*.db
+*.tar.gz
+*.wps
+*.egg-info/

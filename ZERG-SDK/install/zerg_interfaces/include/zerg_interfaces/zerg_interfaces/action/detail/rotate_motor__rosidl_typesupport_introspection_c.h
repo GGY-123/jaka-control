@@ -1,0 +1,1 @@
+/home/sxkc/Demo/ZERG-SDK/build/zerg_interfaces/rosidl_typesupport_introspection_c/zerg_interfaces/action/detail/rotate_motor__rosidl_typesupport_introspection_c.h

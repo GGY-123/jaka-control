@@ -1,0 +1,19 @@
+zerg_driver:
+  ros__parameters:
+    port: /dev/ttyUSB0
+    baudrate: 115200
+    slave_id: 1
+    serial_timeout_s: 0.2
+    byte_order: big
+    poll_rate_hz: 20.0
+    reconnect_interval_s: 2.0
+    motion_timeout_s: 15.0
+    feedback_rate_hz: 10.0
+    grip_tolerance_mm: 0.2
+    rotation_tolerance_deg: 1.0
+    default_grip_speed_mm_s: 50.0
+    default_grip_current_a: 0.3
+    default_rotation_speed_deg_s: 360.0
+    default_rotation_current_a: 0.8
+    grip_joint_name: zerg_grip_joint
+    rotation_joint_name: zerg_rotation_joint

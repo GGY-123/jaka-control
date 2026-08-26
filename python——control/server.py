@@ -43,7 +43,7 @@ GRIPPER_SLAVE = int(os.environ.get("GRIPPER_SLAVE", "1"))
 GRIPPER_BAUD = int(os.environ.get("GRIPPER_BAUD", "115200"))
 ZERG_ROOT = os.environ.get(
     "ZERG_ROOT",
-    os.path.abspath(os.path.join(DATA_DIR, "..", "..", "ZERG-SDK")),
+    os.path.abspath(os.path.join(DATA_DIR, "..", "ZERG-SDK")),
 )
 ZERG_INTERFACES_PYTHON = os.path.join(
     ZERG_ROOT, "install", "zerg_interfaces", "local", "lib", "python3.10", "dist-packages"
@@ -56,8 +56,13 @@ COORD_BASE, COORD_JOINT, COORD_TOOL = 0, 1, 2
 ABS, INCR = 0, 1
 ORANGE_CAPPING_END_3_LINEAR_SPEED = 1.0
 ZERG_ROTATE_DEFAULT_SPEED = 180.0
+# 总流程中，A5 从各试管夹取点上方直线下探到夹取点的速度。
+A5_PICK_APPROACH_SPEED_MM_S = 10.0
+# 总流程的统一运动参数：关节运动与仅 Z 向直线运动。
+TOTAL_WORKFLOW_JOINT_SPEED_RAD_S = 0.5
+TOTAL_WORKFLOW_Z_LINEAR_SPEED_MM_S = 10.0
 MANUAL_POINT_MOTION_PROFILES = {
-    "p_abfac73e": {"move_type": "linear", "speed": ORANGE_CAPPING_END_3_LINEAR_SPEED},
+    "p_abfac73e": {"move_type": "linear", "speed": 20.0},
     "p_1c109aae": {"move_type": "linear", "speed": ORANGE_CAPPING_END_3_LINEAR_SPEED},
 }
 
@@ -1382,21 +1387,21 @@ class TransferSubflowRunner:
 
     def _steps(self):
         return [
-            "A5：夹取点上方", "A5：夹取点", "等待 1 秒", "末端夹爪：闭合",
+            "A5：夹取点上方", "A5：夹取点", "末端夹爪：闭合", "A5：夹取点上方",
             "A5：过渡点1", "A5：过渡点2", "A5：旋转夹爪上方",
             "A5：旋转夹爪夹取点", "旋转夹爪：闭合（0.5 A）",
             "A5：旋转夹爪上方", "A5：旋转夹爪上方向后移动",
             "JAKA Mini：Home", "JAKA Mini：试管上方", "等待 1 秒",
             "JAKA Mini：试管下方", "移液枪：吸液 600 uL", "JAKA Mini：试管上方",
             "JAKA Mini：Home",
-            "A5：旋转夹爪上方", "A5：紫色放盖点（慢）", "旋转夹爪：张开", "A5：旋转夹爪上方",
+            "A5：旋转夹爪上方", "A5：紫色放盖过渡点（慢）", "A5：紫色放盖点（慢）", "A5：紫色放盖点到位稳定（等待 2 秒）", "旋转夹爪：张开", "A5：旋转夹爪上方",
             "A5：紫色终点上方", "A5：紫色终点", "末端夹爪：张开", "A5：紫色终点上方",
             "A5：夹取点上方",
         ]
 
     def used_point_ids(self):
         return {
-            "p_0d029508", "p_d7b19939", "p_5d256a0d", "p_5f102e2f", "p_ed5f1653", "p_6d9b3168", "p_c181a223", "p_897b6cb2",
+            "p_0d029508", "p_d7b19939", "p_5d256a0d", "p_5f102e2f", "p_ed5f1653", "p_6d9b3168", "p_c181a223", "p_897b6cb2", "p_833f848c",
             "jaka_home", "jaka_tube_above", "jaka_tube_lower", "jaka_point_4", "jaka_point_5", "jaka_point_6",
             "p_6f434a73", "p_59352ab4",
         }
@@ -1465,7 +1470,9 @@ class TransferSubflowRunner:
 
     def _move(self, arm, point_id, move_type, speed, acc=100.0):
         point = self._point(point_id)
-        target = point["joints"] if move_type == "joint" else point["pose"]
+        target = list(point["joints"] if move_type == "joint" else point["pose"])
+        if move_type == "joint":
+            speed = TOTAL_WORKFLOW_JOINT_SPEED_RAD_S
         if arm is self.a5:
             # Robot.move() normalizes a successful SDK response to {"ok": True}.
             arm.move(move_type, target, ABS, True, speed, acc, 0.1)
@@ -1534,7 +1541,7 @@ class TransferSubflowRunner:
                         if not result or result[0] != 0: raise RuntimeError(f"Mini {name}失败: {result!r}")
                 if motion == "linear_z":
                     current = list(mini.get_actual_tcp_position()[1]); current[2] = point["pose"][2]
-                    result = mini.linear_move_extend(current, ABS, True, speed, 100.0, 0.1)
+                    result = mini.linear_move_extend(current, ABS, True, TOTAL_WORKFLOW_Z_LINEAR_SPEED_MM_S, 100.0, 0.1)
                     if not result or result[0] != 0: raise RuntimeError(f"Mini Z 直线失败: {result!r}")
                     self._wait(0.2)
                 else: self._move(mini, point_id, motion, speed)
@@ -1542,7 +1549,7 @@ class TransferSubflowRunner:
             self._checkpoint("JAKA Mini：试管下方")
             point = self._point("jaka_tube_lower")
             current = list(mini.get_actual_tcp_position()[1]); current[2] = point["pose"][2]
-            result = mini.linear_move_extend(current, ABS, True, 30.0, 100.0, 0.1)
+            result = mini.linear_move_extend(current, ABS, True, TOTAL_WORKFLOW_Z_LINEAR_SPEED_MM_S, 100.0, 0.1)
             if not result or result[0] != 0: raise RuntimeError(f"Mini Z 直线失败: {result!r}")
             self._wait_mini_arrival(mini, "试管下方")
             self._checkpoint("移液枪：吸液 600 uL"); self.pipette.action("aspirate")
@@ -1557,18 +1564,19 @@ class TransferSubflowRunner:
     def _worker(self):
         try:
             self._checkpoint("A5：夹取点上方"); self._move(self.a5, "p_0d029508", "linear", 30)
-            self._checkpoint("A5：夹取点"); self._move(self.a5, "p_d7b19939", "linear", 20)
-            self._checkpoint("等待 1 秒"); self._wait(1)
+            self._checkpoint("A5：夹取点"); self._move(self.a5, "p_d7b19939", "linear", A5_PICK_APPROACH_SPEED_MM_S)
             self._checkpoint("末端夹爪：闭合"); self._close_end()
+            self._checkpoint("A5：夹取点上方"); self._move(self.a5, "p_0d029508", "linear", 45)
             for label, pid in (("A5：过渡点1", "p_5d256a0d"), ("A5：过渡点2", "p_5f102e2f"), ("A5：旋转夹爪上方", "p_ed5f1653"), ("A5：旋转夹爪夹取点", "p_6d9b3168")):
                 self._checkpoint(label); self._move(self.a5, pid, "joint" if "过渡" in label or "上方" in label else "linear", 0.5 if "过渡" in label or "上方" in label else 15)
             self._checkpoint("旋转夹爪：闭合（0.5 A）"); self._zerg_close_hold()
             for label, pid in (("A5：旋转夹爪上方", "p_ed5f1653"), ("A5：旋转夹爪上方向后移动", "p_c181a223")):
                 self._checkpoint(label); self._move(self.a5, pid, "joint", 0.5)
             self._mini()
-            for label, pid, typ, speed in (("A5：旋转夹爪上方", "p_ed5f1653", "joint", 0.4), ("A5：紫色放盖点（慢）", "p_897b6cb2", "linear", 5), ("旋转夹爪：张开", None, None, None), ("A5：旋转夹爪上方", "p_ed5f1653", "joint", 0.5), ("A5：紫色终点上方", "p_6f434a73", "joint", 0.5), ("A5：紫色终点", "p_59352ab4", "linear", 15), ("末端夹爪：张开", None, None, None), ("A5：紫色终点上方", "p_6f434a73", "linear", 30), ("A5：夹取点上方", "p_0d029508", "joint", 0.5)):
+            for label, pid, typ, speed in (("A5：旋转夹爪上方", "p_ed5f1653", "joint", 0.4), ("A5：紫色放盖过渡点（慢）", "p_897b6cb2", "linear", 5), ("A5：紫色放盖点（慢）", "p_833f848c", "linear", 5), ("A5：紫色放盖点到位稳定（等待 2 秒）", None, None, None), ("旋转夹爪：张开", None, None, None), ("A5：旋转夹爪上方", "p_ed5f1653", "joint", 0.5), ("A5：紫色终点上方", "p_6f434a73", "joint", 0.5), ("A5：紫色终点", "p_59352ab4", "linear", 15), ("末端夹爪：张开", None, None, None), ("A5：紫色终点上方", "p_6f434a73", "linear", 30), ("A5：夹取点上方", "p_0d029508", "joint", 0.5)):
                 self._checkpoint(label)
-                if label == "旋转夹爪：张开": self.zerg.action("open", "{speed_mm_s: 20, current_a: 0.5}", 25)
+                if label == "A5：紫色放盖点到位稳定（等待 2 秒）": self._wait(2.0)
+                elif label == "旋转夹爪：张开": self.zerg.action("open", "{speed_mm_s: 20, current_a: 0.5}", 25)
                 elif label == "末端夹爪：张开": self.end_gripper.open(wait=True); self._wait(0.5)
                 else: self._move(self.a5, pid, typ, speed)
             self.logs.append("取液子流程完成")
@@ -1644,7 +1652,7 @@ class OrangeCappingSubflowRunner(TransferSubflowRunner):
     def _raise_a5_z(self):
         self._move_a5_z(0.5, "A5 Z 上升")
 
-    def _move_a5_z(self, delta_mm, label, speed_mm_s=5.0):
+    def _move_a5_z(self, delta_mm, label, speed_mm_s=TOTAL_WORKFLOW_Z_LINEAR_SPEED_MM_S):
         pose = list(self.a5.status().get("tcp") or [])
         if len(pose) != 6:
             raise RuntimeError("无法读取 A5 当前 TCP 位姿")
@@ -1678,10 +1686,7 @@ class OrangeCappingSubflowRunner(TransferSubflowRunner):
         # Give the Action client a brief chance to send its goal before the
         # A5 starts its synchronized Z move.
         time.sleep(0.1)
-        # At 90 deg/s one full turn lasts about four seconds.  Match the
-        # Z-motion duration to that turn so it moves throughout the rotation.
-        z_speed = max(0.1, abs(z_delta_mm) * ZERG_ROTATE_DEFAULT_SPEED / 360.0)
-        self._move_a5_z(z_delta_mm, label, speed_mm_s=z_speed)
+        self._move_a5_z(z_delta_mm, label, speed_mm_s=TOTAL_WORKFLOW_Z_LINEAR_SPEED_MM_S)
         rotate_thread.join(timeout=35.0)
         if rotate_thread.is_alive():
             raise RuntimeError("旋转夹爪旋转完成确认超时")
@@ -1705,14 +1710,14 @@ class OrangeCappingSubflowRunner(TransferSubflowRunner):
             point = self._point("p_168a6f7e")
             current = list(mini.get_actual_tcp_position()[1])
             current[2] = point["pose"][2]
-            result = mini.linear_move_extend(current, ABS, True, 15.0, 80.0, 0.05)
+            result = mini.linear_move_extend(current, ABS, True, TOTAL_WORKFLOW_Z_LINEAR_SPEED_MM_S, 80.0, 0.05)
             if not result or result[0] != 0:
                 raise RuntimeError(f"Mini 滴液 Z 直线失败: {result!r}")
             self._wait_mini_arrival(mini, "滴橙色试管点")
             self._checkpoint("移液枪：滴液"); self.pipette.action("dispense")
             self._checkpoint("JAKA Mini：滴橙色试管上方")
             current[2] = self._point("p_9655aa5f")["pose"][2]
-            result = mini.linear_move_extend(current, ABS, True, 15.0, 80.0, 0.05)
+            result = mini.linear_move_extend(current, ABS, True, TOTAL_WORKFLOW_Z_LINEAR_SPEED_MM_S, 80.0, 0.05)
             if not result or result[0] != 0:
                 raise RuntimeError(f"Mini 返回滴液上方 Z 直线失败: {result!r}")
             self._wait_mini_arrival(mini, "滴橙色试管上方")
@@ -1731,7 +1736,7 @@ class OrangeCappingSubflowRunner(TransferSubflowRunner):
         number, tube_above, tube_point, end_above, end_point = tube
         prefix = f"橙色试管{number}"
         self._a5_step(f"A5：{prefix}夹取点上方", tube_above, "joint", 0.45)
-        self._a5_step(f"A5：{prefix}夹取点", tube_point, "linear", 30.0)
+        self._a5_step(f"A5：{prefix}夹取点", tube_point, "linear", A5_PICK_APPROACH_SPEED_MM_S)
         self._checkpoint("末端夹爪：闭合"); self._close_end()
         self._a5_step(f"A5：{prefix}夹取点上方", tube_above, "linear", 45.0)
         self._a5_step("A5：旋转夹爪上方", "p_ed5f1653", "joint", 0.45)
@@ -1763,7 +1768,8 @@ class OrangeCappingSubflowRunner(TransferSubflowRunner):
         self._a5_step(f"A5：试管盒终点{number}上方", end_above, "joint", 0.45)
         self._a5_step(f"A5：试管盒终点{number}（慢）", end_point, "linear", 30.0)
         self._checkpoint("末端夹爪：张开"); self.end_gripper.open(wait=True); self._wait(0.8)
-        self._a5_step(f"A5：试管盒终点{number}上方", end_above, "linear", 45.0)
+        return_speed = 20.0 if number == "3" else 45.0
+        self._a5_step(f"A5：试管盒终点{number}上方", end_above, "linear", return_speed)
         self._a5_step("A5：夹取点上方", "p_0d029508", "joint", 0.45)
 
     def _worker(self):
@@ -1861,6 +1867,10 @@ class CombinedSubflowRunner:
 
 
 robot = Robot()
+mini_robot = Robot()
+ACTIVE_ROBOT_IDS = {"a5": robot, "mini": mini_robot}
+active_robot_id = "a5"
+active_robot_lock = threading.RLock()
 gripper = PGIGripper(sim=GRIPPER_SIM)
 runner = FlowRunner(robot, gripper)
 zerg = ZergRosBridge(ZERG_ROOT)
@@ -1870,6 +1880,18 @@ orange_capping_subflow = OrangeCappingSubflowRunner(robot, gripper, zerg, pipett
 combined_subflow = CombinedSubflowRunner(transfer_subflow, orange_capping_subflow)
 
 print(f"[启动] 机械臂模拟={SIM}, 夹爪模拟={GRIPPER_SIM}, 默认串口={GRIPPER_PORT or '(未设置)'}")
+
+
+def active_robot():
+    with active_robot_lock:
+        return ACTIVE_ROBOT_IDS[active_robot_id]
+
+
+def robot_by_id(robot_id):
+    target = ACTIVE_ROBOT_IDS.get(robot_id)
+    if target is None:
+        raise HTTPException(404, f"未知机械臂: {robot_id}")
+    return target
 
 # ---------------- FastAPI ----------------
 app = FastAPI(title="JAKA 机械臂控制与点位管理系统")
@@ -1884,70 +1906,85 @@ def info():
             "move_types": list(MOVE_TYPES)}
 
 
+@app.get("/api/robots")
+def robots_state():
+    return {"active_robot": active_robot_id, "robots": {key: value.status() for key, value in ACTIVE_ROBOT_IDS.items()}}
+
+
+@app.post("/api/robots/{robot_id}/select")
+def select_robot(robot_id: str):
+    robot_by_id(robot_id)
+    global active_robot_id
+    with active_robot_lock:
+        active_robot_id = robot_id
+    return {"active_robot": active_robot_id, "status": active_robot().status()}
+
+
 @app.post("/api/connect")
 def connect(req: ConnectReq):
-    return robot.connect(req.ip)
+    return active_robot().connect(req.ip)
 
 
 @app.post("/api/disconnect")
 def disconnect():
-    return robot.disconnect()
+    return active_robot().disconnect()
 
 
 @app.post("/api/power_on")
 def power_on():
-    return robot.power_on()
+    return active_robot().power_on()
 
 
 @app.post("/api/power_off")
 def power_off():
-    return robot.power_off()
+    return active_robot().power_off()
 
 
 @app.post("/api/enable")
 def enable():
-    return robot.enable()
+    return active_robot().enable()
 
 
 @app.post("/api/disable")
 def disable():
-    return robot.disable()
+    return active_robot().disable()
 
 
 @app.get("/api/status")
 def status():
-    return robot.status()
+    return active_robot().status()
 
 
 @app.post("/api/jog")
 def jog(req: JogReq):
-    return robot.jog(req.axis, req.move_mode, req.coord, req.vel, req.pos_cmd)
+    return active_robot().jog(req.axis, req.move_mode, req.coord, req.vel, req.pos_cmd)
 
 
 @app.post("/api/jog_stop")
 def jog_stop():
-    return robot.jog_stop()
+    return active_robot().jog_stop()
 
 
 @app.post("/api/move")
 def move(req: MoveReq):
+    target_robot = active_robot()
     point, profile = manual_motion_profile_for_target(req.target)
-    if profile:
+    if profile and target_robot is robot:
         print(
             f"[手动点位] {point['name']} -> {profile['move_type']} {profile['speed']}",
             flush=True,
         )
-        return robot.move(
+        return target_robot.move(
             profile["move_type"], point["pose"], req.move_mode, req.is_block,
             profile["speed"], 100.0, 0.1,
         )
-    return robot.move(req.move_type, req.target, req.move_mode, req.is_block,
+    return target_robot.move(req.move_type, req.target, req.move_mode, req.is_block,
                      req.speed, req.acc, req.tol, req.mid_pos)
 
 
 @app.post("/api/motion_abort")
 def motion_abort():
-    return robot.motion_abort()
+    return active_robot().motion_abort()
 
 
 # ---- 夹爪 ----
@@ -1991,8 +2028,8 @@ def gripper_initialize(req: GripperInitReq):
         raise HTTPException(400, "夹爪未连接")
     try:
         return gripper.initialize(wait=req.wait, timeout=req.timeout)
-    except RuntimeError as e:
-        raise HTTPException(400, str(e))
+    except Exception as e:
+        raise HTTPException(400, f"夹爪初始化失败: {e!r}")
 
 
 @app.post("/api/gripper/move")

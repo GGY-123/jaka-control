@@ -1,0 +1,1 @@
+/home/sxkc/Demo/ZERG-SDK/build/zerg_interfaces/rosidl_generator_cpp/zerg_interfaces/action/detail/open_gripper__type_support.hpp

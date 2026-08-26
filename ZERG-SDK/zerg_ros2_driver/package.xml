@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>zerg_ros2_driver</name>
+  <version>0.1.0</version>
+  <description>ROS 2 driver for the HITBOT Z-ERG-20C rotating gripper.</description>
+  <maintainer email="maintainer@example.com">ZERG SDK contributors</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_python</buildtool_depend>
+
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>diagnostic_msgs</exec_depend>
+  <exec_depend>std_srvs</exec_depend>
+  <exec_depend>zerg_interfaces</exec_depend>
+
+  <test_depend>ament_pytest</test_depend>
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>
+

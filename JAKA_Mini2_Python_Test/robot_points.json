@@ -1,0 +1,54 @@
+{
+  "robot": {
+    "ip": "10.5.5.100",
+    "use_grpc": false
+  },
+  "motion": {
+    "joint_speed_deg_s": 10,
+    "linear_speed_mm_s": 30,
+    "dwell_s": 1.0,
+    "disable_on_exit": true
+  },
+  "points": {
+    "home": {
+      "description": "Initial position",
+      "joint_deg": [190.972712, 31.600471, -76.560789, -347.103832, -47.04296, -14.510245],
+      "tcp_mm_rad": [-189.384103, -57.256261, 511.475167, -1.798224221, 1.473459247, 1.700034581]
+    },
+    "tube_above": {
+      "description": "Above the test tube",
+      "joint_deg": [196.428797, -20.81942, -38.1313, -352.665661, -28.338736, -3.775229],
+      "tcp_mm_rad": [-397.232719, -120.992397, 500.077252, 0.712961675, 1.503829645, -2.080071276]
+    },
+    "tube_lower": {
+      "description": "Lower test-tube point; linear_z uses only this recorded Z",
+      "joint_deg": [196.259882, -13.954338, -61.956525, -341.816662, -11.655997, -14.870047],
+      "tcp_mm_rad": [-397.287052, -120.141724, 450.399104, 0.746364762, 1.499581418, -2.046999138]
+    },
+    "point_4": {
+      "description": "Fourth point",
+      "joint_deg": [186.266444, -31.547569, -72.684675, -318.932141, 18.134805, -43.391928],
+      "tcp_mm_rad": [-472.821375, -12.936012, 312.909128, -1.662843042, 1.503522281, 1.382391395]
+    },
+    "point_5": {
+      "description": "Fifth point",
+      "joint_deg": [180.320094, -30.285515, -74.615522, -337.791546, 15.656014, -25.263113],
+      "tcp_mm_rad": [-469.478765, 19.714751, 312.90806, -1.662699984, 1.503515331, 1.382504988]
+    },
+    "point_6": {
+      "description": "Sixth point",
+      "joint_deg": [174.757578, -31.602501, -72.690168, -338.457592, 14.939156, -24.683584],
+      "tcp_mm_rad": [-470.273354, 64.399454, 312.589671, -1.662649138, 1.50350686, 1.292849945]
+    }
+  },
+  "sequence": [
+    {"point": "home", "motion": "joint", "note": "Always return home first"},
+    {"point": "tube_above", "motion": "joint"},
+    {"point": "tube_lower", "motion": "linear_z", "note": "Move only Z down"},
+    {"point": "tube_above", "motion": "linear_z", "note": "Move only Z up"},
+    {"point": "point_4", "motion": "joint"},
+    {"point": "point_5", "motion": "joint"},
+    {"point": "point_6", "motion": "joint"},
+    {"point": "home", "motion": "joint", "note": "Return home"}
+  ]
+}

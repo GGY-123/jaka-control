@@ -57,7 +57,7 @@ class PGIGripper:
         self.initialized = False
         self.lock = threading.Lock()
         # 模拟状态
-        self._force = 25
+        self._force = FORCE_MIN
         self._speed = 50
         self._pos = 0.0
         self._target = 0
@@ -122,7 +122,10 @@ class PGIGripper:
             if self.sim:
                 self._init_state = 1
             else:
-                self._write(REG_INIT_WRITE, 1)
+                try:
+                    self._write(REG_INIT_WRITE, 1)
+                except Exception as exc:
+                    raise RuntimeError(f"发送初始化命令失败: {exc!r}") from exc
         # 等待初始化完成（读状态寄存器 0x0200）
         t0 = time.time()
         st = 0
@@ -136,7 +139,9 @@ class PGIGripper:
                 with self.lock:
                     try:
                         st = self._read(REG_INIT_READ)
-                    except Exception:
+                    except Exception as exc:
+                        # 保留最后一次通信错误；到超时时把它返回给界面。
+                        last_comm_error = exc
                         st = 0
             if st == 2:
                 break
@@ -144,9 +149,14 @@ class PGIGripper:
                 break
             time.sleep(0.1)
         self.initialized = st == 2
+        if not self.initialized and not self.sim and 'last_comm_error' in locals():
+            raise RuntimeError(f"读取初始化状态失败: {last_comm_error!r}") from last_comm_error
         # Ensure the hardware starts with the same safe default shown by the UI.
         if self.initialized:
-            self.set_force(self._force)
+            try:
+                self.set_force(self._force)
+            except Exception as exc:
+                raise RuntimeError(f"初始化完成但写入力值 {self._force} 失败: {exc!r}") from exc
         return {"initialized": self.initialized, "state": st}
 
     # ---------- 参数设置 ----------

@@ -26,7 +26,10 @@ export default function App() {
   const [connected, setConnected] = useState(false)
   const [sim, setSim] = useState(false)
   const [ip, setIp] = useState('10.5.5.100')
+  const [activeRobot, setActiveRobot] = useState<'a5' | 'mini'>('a5')
+  const [robotStates, setRobotStates] = useState<Partial<Record<'a5' | 'mini', RobotStatus>>>({})
   const [status, setStatus] = useState<RobotStatus>({ connected: false })
+  const [manualLocked, setManualLocked] = useState(false)
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
   const [pwBusy, setPwBusy] = useState(false)
@@ -37,6 +40,10 @@ export default function App() {
 
   const poll = useCallback(() => {
     api.status().then((s) => { setStatus(s); setConnected(s.connected) }).catch(() => {})
+    api.robots().then((value) => setRobotStates(value.robots)).catch(() => {})
+    api.combinedSubflowState()
+      .then((state) => setManualLocked(state.status === 'running' || state.status === 'paused'))
+      .catch(() => setManualLocked(false))
   }, [])
 
   useEffect(() => {
@@ -72,6 +79,19 @@ export default function App() {
     }
   }
 
+  const selectActiveRobot = async (id: 'a5' | 'mini') => {
+    if (busy || pwBusy || id === activeRobot) return
+    setBusy(true); setErr('')
+    try {
+      const result = await api.selectRobot(id)
+      setActiveRobot(id); setStatus(result.status); setConnected(result.status.connected)
+      setIp(id === 'a5' ? '192.168.1.102' : '192.168.1.103')
+      poll()
+    } catch (e) {
+      setErr(`切换机械臂失败：${(e as Error).message}`)
+    } finally { setBusy(false) }
+  }
+
   const runPw = async (fn: () => Promise<unknown>, label: string) => {
     setPwBusy(true); setErr('')
     try {
@@ -103,6 +123,16 @@ export default function App() {
             )}
           </div>
           <div className="ml-auto flex items-center gap-2 flex-wrap justify-end">
+            <div className="flex gap-1">
+              {(['a5', 'mini'] as const).map((id) => {
+                const selected = id === activeRobot
+                const state = robotStates[id]
+                return <button key={id} onClick={() => selectActiveRobot(id)} disabled={busy || pwBusy}
+                  className={`${btn} border ${selected ? 'bg-brand-100 border-brand-400 text-brand-700' : 'bg-slate-50 border-slate-200 text-slate-600'}`}>
+                  {id === 'a5' ? 'A5' : 'Mini'} {state?.enabled ? '✓' : ''}
+                </button>
+              })}
+            </div>
             <input
               value={ip}
               onChange={(e) => setIp(e.target.value)}
@@ -205,7 +235,7 @@ export default function App() {
         <div className={card}>
           <div className="p-4">
             {tab === 'status' && <StatusPanel status={status} connected={connected} />}
-            {tab === 'manual' && <ManualControl connected={connected} status={status} />}
+            {tab === 'manual' && <ManualControl connected={connected} status={status} locked={manualLocked} />}
             {tab === 'points' && <WaypointManager connected={connected} status={status} />}
             {tab === 'flow' && <FlowEditor connected={connected} />}
             {tab === 'zerg' && <ZergPanel />}
